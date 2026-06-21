@@ -1,0 +1,145 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - GERBANG AUTENTIKASI UTAMA (SERVER-SIDE SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + CLOUDFLARE WORKERS COMPATIBLE
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+// 🟢 Kancing Kabel Variabel Lunas (Anti 'is not defined' Se-Jagat Raya!)
+let pesanNotifikasi = "";
+let tipeNotifikasi = ""; 
+
+// 🛡️ UPGRADE SASIS DETEKTOR MULTI-ROLE ASTRO V6 (ANTI-LOOP REDIRECT)
+const cekCookieRole = Astro.cookies.get("siakad_session_role")?.value;
+const cekCookieNim = Astro.cookies.get("siakad_session_nim")?.value;
+
+if (cekCookieNim && cekCookieRole) {
+  if (cekCookieRole === "mahasiswa") return Astro.redirect('/mahasiswa/dashboard');
+  if (cekCookieRole === "dosen") return Astro.redirect('/dosen/dashboard');
+}
+
+if (Astro.request.method === "POST") {
+  try {
+    const dataFormulir = await Astro.request.formData();
+    const nomorInduk = dataFormulir.get("nomor_induk")?.toString().trim();
+    const kataSandi = dataFormulir.get("kata_sandi")?.toString().trim();
+
+    if (!nomorInduk || !kataSandi) {
+      throw new Error("Nomor Induk (NIM/NIDN) dan Kata Sandi wajib diisi, Chief!");
+    }
+
+    const db = env.database_siakad;
+    
+    if (!db) {
+      throw new Error("Sistem Workers gagal memuat binding pangkalan data 'database_siakad'.");
+    }
+
+    const userAkun: any = await db.prepare(
+      "SELECT id, nomor_induk, nama_lengkap, peran, status_akun FROM pengguna_siakad WHERE nomor_induk = ? AND kata_sandi = ?"
+    ).bind(nomorInduk, kataSandi).first();
+
+    if (!userAkun) {
+      throw new Error("Nomor Induk atau Kata Sandi salah/tidak terdaftar di sistem.");
+    }
+
+    if (userAkun.status_akun !== "aktif") {
+      throw new Error("Akun Anda sedang ditangguhkan/cuti. Silakan hubungi Baak.");
+    }
+
+    // 🏆 INJEKSI COOKIES KASTA SULTAN
+    Astro.cookies.set("siakad_session_nim", userAkun.nomor_induk, { path: "/", httpOnly: true, secure: true, maxAge: 60 * 60 * 24 });
+    Astro.cookies.set("siakad_session_nama", userAkun.nama_lengkap, { path: "/", httpOnly: true, secure: true, maxAge: 60 * 60 * 24 });
+    Astro.cookies.set("siakad_session_role", userAkun.peran, { path: "/", httpOnly: true, secure: true, maxAge: 60 * 60 * 24 });
+
+    if (userAkun.peran === "mahasiswa") {
+      return Astro.redirect('/mahasiswa/dashboard');
+    } else if (userAkun.peran === "dosen") {
+      return Astro.redirect('/dosen/dashboard');
+    }
+
+  } catch (error: any) {
+    pesanNotifikasi = error.message;
+    tipeNotifikasi = "error";
+  }
+}
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Login SIAKAD - STIT YA'MAL Tangerang</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box;">
+    
+    <div style="background-color: #ffffff; width: 100%; max-width: 420px; padding: 40px 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 10px 15px -3px rgba(0, 5, 10, 0.05); box-sizing: border-box;">
+      
+      <div style="text-align: center; margin-bottom: 32px;">
+        <div style="font-size: 2.2rem; margin-bottom: 4px;">🎓</div>
+        <h1 style="margin: 0; font-size: 1.6rem; color: #005d6c; font-weight: 800; letter-spacing: -0.5px;">
+          SIAKAD LOGIN
+        </h1>
+        <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.88rem; font-weight: 500; line-height: 1.4;">
+          Sekolah Tinggi Ilmu Tarbiyah (STIT)<br/>YA'MAL Pasar Kemis - Sepatan Tangerang
+        </p>
+      </div>
+
+      {pesanNotifikasi && (
+        <div style={`padding: 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; margin-bottom: 20px; line-height: 1.4;
+          background-color: ${tipeNotifikasi === 'error' ? '#fee2e2' : '#dcfce7'};
+          border: 1px solid ${tipeNotifikasi === 'error' ? '#fca5a5' : '#bbf7d0'};
+          color: ${tipeNotifikasi === 'error' ? '#991b1b' : '#166534'};`}>
+          {tipeNotifikasi === 'error' ? '⚠️ ' : '✅ '} {pesanNotifikasi}
+        </div>
+      )}
+
+      <form method="POST" style="display: flex; flex-direction: column; gap: 18px;">
+        
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="nomor_induk" style="font-size: 0.85rem; color: #374151; font-weight: 700; text-transform: uppercase;">
+            Nomor Induk (NIM / NIDN)
+          </label>
+          <input 
+            type="text" 
+            id="nomor_induk" 
+            name="nomor_induk" 
+            placeholder="Contoh: 202610001" 
+            required
+            style="padding: 12px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95rem; color: #0f172a; outline: none; transition: border-color 0.15s; font-weight: 500;"
+          />
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="kata_sandi" style="font-size: 0.85rem; color: #374151; font-weight: 700; text-transform: uppercase;">
+            Kata Sandi Akun
+          </label>
+          <input 
+            type="password" 
+            id="kata_sandi" 
+            name="kata_sandi" 
+            placeholder="••••••••" 
+            required
+            style="padding: 12px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95rem; color: #0f172a; outline: none; transition: border-color 0.15s;"
+          />
+        </div>
+
+        <button 
+          type="submit" 
+          style="margin-top: 8px; padding: 14px; background-color: #005d6c; color: #ffffff; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background-color 0.15s; box-shadow: 0 4px 6px -1px rgba(0, 93, 108, 0.15);"
+          onmouseover="this.style.backgroundColor='#0b6170'"
+          onmouseout="this.style.backgroundColor='#005d6c'"
+        >
+          Masuk Sistem ➔
+        </button>
+
+      </form>
+
+      <div style="text-align: center; margin-top: 32px; padding-top: 20px; border-top: 1px solid #f1f5f9; color: #9ca3af; font-size: 0.75rem; font-weight: 600;">
+        SIAKAD v1.0 © 2026 STIT YA'MAL Tangerang.<br/>All rights reserved.
+      </div>
+
+    </div>
+
+  </body>
+</html>

@@ -1,0 +1,156 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - APPROVAL KRS DOSEN WALI (SERVER-SIDE SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + CLOUDFLARE D1 TRANSACTION HUB
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanNotifikasi = "";
+let tipeNotifikasi = "";
+let antreanKrs: any[] = [];
+
+// 🛡️ GATEKEEPER PROTECTION: Ambil session cookie khusus dosen wali
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "dosen") {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding missing" }, { status: 500 });
+}
+
+// 🏁 ACTION ENGINE: Memproses tombol "Approve Sahkan KRS" saat diklik dosen
+if (Astro.request.method === "POST") {
+  try {
+    const dataForm = await Astro.request.formData();
+    const krsIndukId = dataForm.get("krs_induk_id")?.toString();
+
+    if (!krsIndukId) {
+      throw new Error("ID Berkas KRS tidak valid, Jenderal!");
+    }
+
+    // Eksekusi Update Status Kontrak Mahasiswa di Rahim D1
+    await db.prepare(
+      "UPDATE krs_induk SET status_krs = 'approved' WHERE id = ?"
+    ).bind(parseInt(krsIndukId)).run();
+
+    pesanNotifikasi = "✅ Berkas KRS Mahasiswa resmi DISETUJUI & SAH AKTIF di sistem akademik!";
+    tipeNotifikasi = "success";
+
+  } catch (error: any) {
+    pesanNotifikasi = error.message;
+    tipeNotifikasi = "error";
+  }
+}
+
+try {
+  // 🔍 FORENSIK QUERY: Tarik seluruh berkas KRS mahasiswa bimbingan yang butuh approval
+  const krsResult = await db.prepare(`
+    SELECT 
+      ki.id as krs_id, 
+      ps.nomor_induk as nim, 
+      ps.nama_lengkap as nama_mahasiswa, 
+      ki.tahun_akademik, 
+      ki.semester_aktif, 
+      ki.status_krs
+    FROM krs_induk ki
+    JOIN pengguna_siakad ps ON ki.mahasiswa_id = ps.id
+    WHERE ki.status_krs = 'pending_approval'
+  `).all();
+  
+  antreanKrs = krsResult.results || [];
+
+} catch (error: any) {
+  pesanNotifikasi = `Gagal memuat antrean krs: ${error.message}`;
+  tipeNotifikasi = "error";
+}
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Persetujuan KRS - SIAKAD STIT YA'MAL</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- TOP BAR NAVIGASI SULTAN -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem;"><a href="/dosen/dashboard" style="color: #ffffff; text-decoration: none;">🏛️ SIAKAD DOSEN</a> ➔ Antrean KRS</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">👨‍🏫 {sessionNama}</div>
+    </header>
+
+    <main style="max-width: 1100px; margin: 0 auto; padding: 40px 20px;">
+      
+      <!-- BANNER NOTIFIKASI INTERAKTIF -->
+      {pesanNotifikasi && (
+        <div style={`padding: 16px; border-radius: 8px; font-weight: 600; margin-bottom: 24px; font-size: 0.9rem;
+          background-color: ${tipeNotifikasi === 'error' ? '#fee2e2' : '#dcfce7'};
+          border: 1px solid ${tipeNotifikasi === 'error' ? '#fca5a5' : '#bbf7d0'};
+          color: ${tipeNotifikasi === 'error' ? '#991b1b' : '#166534'};`}>
+          {pesanNotifikasi}
+        </div>
+      )}
+
+      <!-- SASIS UTAMA WORKSPACE ANTREAN -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <h2 style="margin: 0 0 20px 0; color: #005d6c; font-weight: 800;">📋 Verifikasi Pengajuan KRS Mahasiswa</h2>
+        
+        {antreanKrs.length === 0 ? (
+          <p style="color: #64748b; font-size: 0.92rem; margin: 0; padding: 30px; text-align: center; background-color: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
+            Bersih jaya sentosa! Tidak ada berkas ajuan KRS mahasiswa yang pending malam ini, Doc!
+          </p>
+        ) : (
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left;">
+              <thead>
+                <tr style="border-bottom: 2px solid #e5e7eb; color: #005d6c; font-weight: bold; background-color: #f8fafc;">
+                  <th style="padding: 14px 12px;">NIM MAHASISWA</th>
+                  <th style="padding: 14px 12px;">NAMA LENGKAP</th>
+                  <th style="padding: 14px 12px; text-align: center;">SEMESTER</th>
+                  <th style="padding: 14px 12px; text-align: center;">STATUS</th>
+                  <th style="padding: 14px 12px; text-align: center;">AKSI UTARA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {antreanKrs.map((krs) => (
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 14px 12px; font-weight: bold; color: #111827;">{krs.nim}</td>
+                    <td style="padding: 14px 12px; font-weight: 500; color: #374151;">{krs.nama_mahasiswa}</td>
+                    <td style="padding: 14px 12px; text-align: center; font-weight: 600;">Sms {krs.semester_aktif} ({krs.tahun_akademik})</td>
+                    <td style="padding: 14px 12px; text-align: center;">
+                      <span style="background-color: #fef9c3; color: #854d0e; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; border: 1px solid #fef08a;">PENDING</span>
+                    </td>
+                    <td style="padding: 14px 12px; text-align: center;">
+                      <form method="POST" style="margin:0;">
+                        <input type="hidden" name="krs_induk_id" value={krs.krs_id} />
+                        <button 
+                          type="submit" 
+                          style="padding: 8px 16px; background-color: #166534; color: #ffffff; border: none; border-radius: 6px; font-size: 0.82rem; font-weight: bold; cursor: pointer; transition: background-color 0.15s;"
+                          onmouseover="this.style.backgroundColor='#14532d'"
+                          onmouseout="this.style.backgroundColor='#166534'"
+                        >
+                          ✅ Setujui & Sahkan
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9;">
+          <a href="/dosen/dashboard" style="color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none;">➔ Kembali ke Dashboard Dosen</a>
+        </div>
+      </div>
+
+    </main>
+  </body>
+</html>

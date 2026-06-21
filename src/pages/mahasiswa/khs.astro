@@ -1,0 +1,237 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - KARTU HASIL STUDI MAHASISWA (SERVER-SIDE SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + CLOUDFLARE D1 KHS REPORT ENGINE
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanNotifikasi = "";
+let tipeNotifikasi = "";
+let daftarNilai: any[] = [];
+let totalSks = 0;
+let totalBobotXSkor = 0;
+let ipkAkhir = 0.0;
+
+// 🛡️ GATEKEEPER PROTECTION: Ambil session cookie mahasiswa
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "mahasiswa") {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding missing" }, { status: 500 });
+}
+
+try {
+  // 1. CARI ID MAHASISWA BERDASARKAN NIM SESSION
+  const mhsId: any = await db.prepare("SELECT id FROM pengguna_siakad WHERE nomor_induk = ?").bind(sessionNim).first();
+
+  if (mhsId) {
+    // 2. QUERY JOIN RAKSASA SULTAN: Tarik Data Nilai UTS/UAS + Nama Matkul Sekaligus!
+    const nilaiResult = await db.prepare(`
+      SELECT 
+        mm.kode_matkul, 
+        mm.nama_matkul, 
+        mm.sks, 
+        kn.nilai_tugas, 
+        kn.nilai_uts, 
+        kn.nilai_uas, 
+        kn.nilai_akhir_angka, 
+        kn.nilai_huruf
+      FROM khs_nilai kn
+      JOIN master_matakuliah mm ON kn.matkul_id = mm.id
+      WHERE kn.mahasiswa_id = ? AND kn.tahun_akademik = '2026/2027' AND kn.semester_nilai = 1
+    `).bind(mhsId.id).all();
+
+    daftarNilai = nilaiResult.results || [];
+
+    // 3. KALKULATOR IPK AUTOMATIC SERVER-SIDE LOGIC
+    daftarNilai.forEach((item) => {
+      totalSks += item.sks;
+      
+      // Konversi Nilai Huruf menjadi Bobot Skor Angka Standar DIKTI
+      let skorBobot = 0;
+      if (item.nilai_huruf === "A") skorBobot = 4;
+      else if (item.nilai_huruf === "B") skorBobot = 3;
+      else if (item.nilai_huruf === "C") skorBobot = 2;
+      else if (item.nilai_huruf === "D") skorBobot = 1;
+
+      totalBobotXSkor += (item.sks * skorBobot);
+    });
+
+    if (totalSks > 0) {
+      ipkAkhir = totalBobotXSkor / totalSks;
+    }
+  }
+} catch (error: any) {
+  pesanNotifikasi = `Gagal memuat sasis rapor: ${error.message}`;
+  tipeNotifikasi = "error";
+}
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Kartu Hasil Studi (KHS) - STIT YA'MAL</title>
+    <!-- 🟢 KAWAT SAKRAL CSS OVERRIDE: Pengubah Tampilan Cetak Kop Surat Resmi -->
+    <style is:global>
+      @media print {
+        /* 1. Sembunyikan Navigasi Atas, Tombol Cetak, dan Link Kembali dari Kertas */
+        header, button, a {
+          display: none !important;
+        }
+        /* 2. Bersihkan Background & Margin Kertas Biar Rapi Putih Bersih */
+        body {
+          background-color: #ffffff !important;
+          color: #000000 !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        main {
+          padding: 0 !important;
+          max-width: 100% !important;
+        }
+        /* 3. Paksa Kotak Summary Tampil Rapi Tanpa Warna Hijau Mengkilap */
+        .kpi-box {
+          border: 1px solid #000000 !important;
+          background-color: #ffffff !important;
+          color: #000000 !important;
+          box-shadow: none !important;
+        }
+        /* 4. Munculkan KOP Surat Kampus Saat Kertas Diprint */
+        .kop-surat-print {
+          display: block !important;
+        }
+      }
+      /* Kondisi Normal di Layar Monitor: KOP Surat Disembunyikan */
+      .kop-surat-print {
+        display: none;
+      }
+    </style>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- HEADER NAVIGASI SULTAN -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem;"><a href="/mahasiswa/dashboard" style="color: #ffffff; text-decoration: none;">🏛️ SIAKAD MAHASISWA</a> ➔ KHS REKAP</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">👤 {sessionNama}</div>
+    </header>
+
+    <main style="max-width: 1100px; margin: 0 auto; padding: 40px 20px;">
+    
+      <!-- 🏛️ KOP SURAT RESMI KAMPUS (OTOMATIS MUNCUL HANYA SAAT DIPRINT / CETAK FISIK) -->
+      <div class="kop-surat-print" style="text-align: center; border-bottom: 3px double #000000; padding-bottom: 10px; margin-bottom: 30px;">
+        <h3 style="margin: 0; font-size: 1.1rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">
+          SEKOLAH TINGGI ILMU TARBIYAH (STIT) YA'MAL TANGERANG
+        </h3>
+        <p style="margin: 4px 0; font-size: 0.85rem; font-weight: 500;">
+          SK KEMENAG RI No. 543 Tahun 2016 | Program Studi: Pendidikan Agama Islam (PAI)
+        </p>
+        <p style="margin: 0; font-size: 0.8rem; color: #4b5563; font-style: italic;">
+          Jl. Raya Pasar Kemis - Sepatan, Kec. Rajeg, Kabupaten Tangerang, Banten
+        </p>
+      </div>
+      
+      {pesanNotifikasi && (
+        <div style="padding: 16px; background-color: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px; color: #991b1b; font-weight: bold; margin-bottom: 24px;">
+          {pesanNotifikasi}
+        </div>
+      )}
+
+      <!-- 📊 KPI PANEL SUMMARY KALKULATOR IPK SULTAN -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+          <div style="font-size: 0.82rem; color: #64748b; font-weight: bold; text-transform: uppercase;">Total Kredit Diambil</div>
+          <div style="font-size: 2rem; font-weight: 800; color: #005d6c; margin-top: 6px;">{totalSks} <span style="font-size: 1rem; font-weight: 500; color: #94a3b8;">SKS</span></div>
+        </div>
+
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #005d6c; background-color: #f0fdf4; border: 1px solid #bbf7d0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+          <div style="font-size: 0.82rem; color: #166534; font-weight: bold; text-transform: uppercase;">🔥 Indeks Prestasi Semester (IPS)</div>
+          <div style="font-size: 2rem; font-weight: 800; color: #166534; margin-top: 6px;">{ipkAkhir.toFixed(2)}</div>
+        </div>
+
+      </div>
+
+      <!-- TABEL DAFTAR RAPOR NILAI RIIL -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <div style="border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h2 style="margin: 0; color: #005d6c; font-weight: 800;">Kartu Hasil Studi (Rapor KHS Digital)</h2>
+            <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.88rem;">Semester: <b>1 (Ganjil)</b> | Tahun Akademik: <b>2026/2027</b></p>
+          </div>
+          <button onclick="window.print()" style="padding: 10px 20px; background-color: #475569; color: #ffffff; border: none; border-radius: 6px; font-weight: bold; font-size: 0.85rem; cursor: pointer;">🖨️ Cetak KHS</button>
+        </div>
+
+        {daftarNilai.length === 0 ? (
+          <p style="color: #64748b; font-size: 0.92rem; margin: 0; padding: 30px; text-align: center; background-color: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
+            Belum ada nilai akhir yang dirilis oleh Dosen Wali untuk semester ini, Chief!
+          </p>
+        ) : (
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left;">
+              <thead>
+                <tr style="border-bottom: 2px solid #e5e7eb; color: #005d6c; font-weight: bold; background-color: #f8fafc;">
+                  <th style="padding: 14px 12px;">KODE</th>
+                  <th style="padding: 14px 12px;">MATA KULIAH</th>
+                  <th style="padding: 14px 12px; text-align: center;">SKS</th>
+                  <th style="padding: 14px 12px; text-align: center;">TUGAS</th>
+                  <th style="padding: 14px 12px; text-align: center;">UTS</th>
+                  <th style="padding: 14px 12px; text-align: center;">UAS</th>
+                  <th style="padding: 14px 12px; text-align: center;">AKHIR</th>
+                  <th style="padding: 14px 12px; text-align: center;">HURUF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {daftarNilai.map((item) => (
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 14px 12px; font-weight: bold; color: #64748b;">{item.kode_matkul}</td>
+                    <td style="padding: 14px 12px; font-weight: 600; color: #111827;">{item.nama_matkul}</td>
+                    <td style="padding: 14px 12px; text-align: center; font-weight: bold;">{item.sks}</td>
+                    <td style="padding: 14px 12px; text-align: center; color: #64748b;">{item.nilai_tugas}</td>
+                    <td style="padding: 14px 12px; text-align: center; color: #64748b;">{item.nilai_uts}</td>
+                    <td style="padding: 14px 12px; text-align: center; color: #64748b;">{item.nilai_uas}</td>
+                    <td style="padding: 14px 12px; text-align: center; font-weight: bold; color: #005d6c;">{item.nilai_akhir_angka.toFixed(2)}</td>
+                    <td style="padding: 14px 12px; text-align: center;">
+                      <span style={`padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: 800;
+                        background-color: ${item.nilai_huruf === 'A' ? '#dcfce7' : '#fef9c3'};
+                        color: ${item.nilai_huruf === 'A' ? '#15803d' : '#a16207'};`}>
+                        {item.nilai_huruf}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div style="margin-top: 30px; padding-top: 16px; border-top: 1px solid #f1f5f9;">
+          <a href="/mahasiswa/dashboard" style="color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none;">➔ Kembali ke Dashboard Mahasiswa</a>
+        </div>
+      </div>
+
+        <!-- 📝 AREA TANDA TANGAN LEGALITAS KHS (OTOMATIS MUNCUL SAAT PRINT) -->
+        <div class="kop-surat-print" style="margin-top: 50px; display: flex; justify-content: space-between; font-size: 0.9rem;">
+          <div style="width: 200px; text-align: center;">
+            <p style="margin: 0 0 60px 0;">Mahasiswa,</p>
+            <p style="margin: 0; font-weight: bold; border-bottom: 1px solid #000000;">{sessionNama}</p>
+            <p style="margin: 2px 0 0 0; font-size: 0.8rem; color: #475569;">NIM. {sessionNim}</p>
+          </div>
+          <div style="width: 250px; text-align: center;">
+            <p style="margin: 0 0 60px 0;">Tangerang, 21 Juni 2026<br/>Dosen Penasihat Akademik,</p>
+            <p style="margin: 0; font-weight: bold; border-bottom: 1px solid #000000;">Dr. Syarifuddin, M.Pd.</p>
+            <p style="margin: 2px 0 0 0; font-size: 0.8rem; color: #475569;">NIDN. 198512001</p>
+          </div>
+        </div>
+
+
+    </main>
+  </body>
+</html>

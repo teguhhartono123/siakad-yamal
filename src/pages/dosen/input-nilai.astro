@@ -1,0 +1,168 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - INPUT NILAI KHS DOSEN WALI (SERVER-SIDE SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + CLOUDFLARE D1 AUTOMATIC CALCULATOR
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanNotifikasi = "";
+let tipeNotifikasi = "";
+let daftarMahasiswa: any[] = [];
+let daftarMatkul: any[] = [];
+
+// 🛡️ GATEKEEPER PROTECTION: Ambil session cookie khusus dosen wali
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "dosen") {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding missing" }, { status: 500 });
+}
+
+// 🏁 ACTION ENGINE: Memproses input form nilai saat tombol "Simpan Nilai Akhir" diketuk dosen
+if (Astro.request.method === "POST") {
+  try {
+    const dataForm = await Astro.request.formData();
+    const mhsId = dataForm.get("mahasiswa_id")?.toString();
+    const matkulId = dataForm.get("matkul_id")?.toString();
+    const nTugas = parseFloat(dataForm.get("nilai_tugas")?.toString() || "0");
+    const nUts = parseFloat(dataForm.get("nilai_uts")?.toString() || "0");
+    const nUas = parseFloat(dataForm.get("nilai_uas")?.toString() || "0");
+
+    if (!mhsId || !matkulId) {
+      throw new Error("Wajib memilih Mahasiswa dan Mata Kuliah, Doc!");
+    }
+
+    // Hitung Nilai Angka untuk Generator Nilai Huruf Otomatis
+    const totalAngka = (nTugas * 0.2) + (nUts * 0.3) + (nUas * 0.5);
+    let nHuruf = "E";
+    if (totalAngka >= 85) nHuruf = "A";
+    else if (totalAngka >= 75) nHuruf = "B";
+    else if (totalAngka >= 60) nHuruf = "C";
+    else if (totalAngka >= 45) nHuruf = "D";
+
+    // Injeksi atau Update Nilai ke Rahim Database D1
+    await db.prepare(`
+      INSERT INTO khs_nilai (mahasiswa_id, matkul_id, tahun_akademik, semester_nilai, nilai_tugas, nilai_uts, nilai_uas, nilai_huruf)
+      VALUES (?, ?, '2026/2027', 1, ?, ?, ?, ?)
+      ON CONFLICT(mahasiswa_id, matkul_id, tahun_akademik, semester_nilai) 
+      DO UPDATE SET nilai_tugas=excluded.nilai_tugas, nilai_uts=excluded.nilai_uts, nilai_uas=excluded.nilai_uas, nilai_huruf=excluded.nilai_huruf
+    `).bind(parseInt(mhsId), parseInt(matkulId), nTugas, nUts, nUas, nHuruf).run();
+
+    pesanNotifikasi = `🎉 Sukses! Nilai Berhasil disimpan. Akumulasi Angka: ${totalAngka.toFixed(2)} (Nilai Huruf: ${nHuruf})`;
+    tipeNotifikasi = "success";
+
+  } catch (error: any) {
+    pesanNotifikasi = error.message;
+    tipeNotifikasi = "error";
+  }
+}
+
+try {
+  // 🔍 AMBIL DATA MASTER UNTUK COMPONENT SELECT OPTION
+  const mhsResult = await db.prepare("SELECT id, nomor_induk, nama_lengkap FROM pengguna_siakad WHERE peran = 'mahasiswa'").all();
+  daftarMahasiswa = mhsResult.results || [];
+
+  const matkulResult = await db.prepare("SELECT id, kode_matkul, nama_matkul FROM master_matakuliah").all();
+  daftarMatkul = matkulResult.results || [];
+} catch (error: any) {
+  pesanNotifikasi = `Gagal memuat komponen master: ${error.message}`;
+  tipeNotifikasi = "error";
+}
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Input Nilai KHS - SIAKAD STIT YA'MAL</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- TOP BAR PANEL NAVIGASI -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem;"><a href="/dosen/dashboard" style="color: #ffffff; text-decoration: none;">🏛️ SIAKAD DOSEN</a> ➔ Input Nilai</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">👨‍🏫 {sessionNama}</div>
+    </header>
+
+    <main style="max-width: 700px; margin: 0 auto; padding: 40px 20px;">
+      
+      <!-- BANNER NOTIFIKASI INTERAKTIF -->
+      {pesanNotifikasi && (
+        <div style={`padding: 16px; border-radius: 8px; font-weight: 600; margin-bottom: 24px; font-size: 0.9rem;
+          background-color: ${tipeNotifikasi === 'error' ? '#fee2e2' : '#dcfce7'};
+          border: 1px solid ${tipeNotifikasi === 'error' ? '#fca5a5' : '#bbf7d0'};
+          color: ${tipeNotifikasi === 'error' ? '#991b1b' : '#166534'};`}>
+          {pesanNotifikasi}
+        </div>
+      )}
+
+      <!-- SASIS FORMULIR UTAMA INPUT NILAI -->
+      <div style="background-color: #ffffff; padding: 36px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <h2 style="margin: 0 0 8px 0; color: #005d6c; font-weight: 800;">✍️ Pengisian Komponen Nilai KHS</h2>
+        <p style="margin: 0 0 28px 0; color: #64748b; font-size: 0.88rem;">Tahun Akademik: <b>2026/2027</b> | Bobot Penilaian: <b>Tugas 20%, UTS 30%, UAS 50%</b></p>
+        
+        <form method="POST" style="display: flex; flex-direction: column; gap: 20px;">
+          
+          <!-- DROPDOWN 1: PILIH MAHASISWA -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-size: 0.85rem; color: #374151; font-weight: 700; text-transform: uppercase;">Pilih Mahasiswa Bimbingan</label>
+            <select name="mahasiswa_id" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95rem; background-color: #ffffff; color: #0f172a;">
+              <option value="">-- Pilih Mahasiswa --</option>
+              {daftarMahasiswa.map((mhs) => (
+                <option value={mhs.id}>{mhs.nama_lengkap} ({mhs.nomor_induk})</option>
+              ))}
+            </select>
+          </div>
+
+          <!-- DROPDOWN 2: PILIH MATA KULIAH -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-size: 0.85rem; color: #374151; font-weight: 700; text-transform: uppercase;">Pilih Mata Kuliah</label>
+            <select name="matkul_id" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95rem; background-color: #ffffff; color: #0f172a;">
+              <option value="">-- Pilih Mata Kuliah --</option>
+              {daftarMatkul.map((matkul) => (
+                <option value={matkul.id}>{matkul.nama_matkul} ({matkul.kode_matkul})</option>
+              ))}
+            </select>
+          </div>
+
+          <!-- INPUT COMPONENT NILAI UTARA -->
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+            
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; color: #475569; font-weight: 700;">NILAI TUGAS (20%)</label>
+              <input type="number" name="nilai_tugas" min="0" max="100" placeholder="0-100" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95rem; color: #0f172a; text-align: center; font-weight: bold;" />
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; color: #475569; font-weight: 700;">NILAI UTS (30%)</label>
+              <input type="number" name="nilai_uts" min="0" max="100" placeholder="0-100" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95rem; color: #0f172a; text-align: center; font-weight: bold;" />
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; color: #475569; font-weight: 700;">NILAI UAS (50%)</label>
+              <input type="number" name="nilai_uas" min="0" max="100" placeholder="0-100" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95rem; color: #0f172a; text-align: center; font-weight: bold;" />
+            </div>
+
+          </div>
+
+          <!-- BUTTON SUBMIT CONTROL -->
+          <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between;">
+            <button type="submit" style="padding: 14px 28px; background-color: #005d6c; color: #ffffff; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: bold; cursor: pointer; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">
+              💾 Simpan Nilai Akhir KHS ➔
+            </button>
+            <a href="/dosen/dashboard" style="color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none;">Batal & Kembali</a>
+          </div>
+
+        </form>
+      </div>
+
+    </main>
+  </body>
+</html>

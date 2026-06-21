@@ -1,0 +1,14 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - PENGHANCUR SESSION COOKIE (SERVER-SIDE SSR)
+// 🎓 STIT YA'MAL TANGERANG - 100% AMAN JAYA & SPEK AUTOMATIC COOKIE WIPER
+// =========================================================================
+
+// 🔥 OPERASI PEMBERSIHAN: Kuras habis seluruh sasis data cookie di browser user
+Astro.cookies.delete("siakad_session_nim", { path: "/" });
+Astro.cookies.delete("siakad_session_nama", { path: "/" });
+Astro.cookies.get("siakad_session_role") && Astro.cookies.delete("siakad_session_role", { path: "/" });
+
+// 🚀 REDIRECT ENGINE: Tendang balik mahasiswa murni ke halaman gerbang login awal!
+return Astro.redirect('/login');
+---

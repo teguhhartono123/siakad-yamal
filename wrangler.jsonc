@@ -1,7 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "siakad-yamal",
-  "main": "src/entry.worker.ts",
   "compatibility_date": "2026-06-21",
   "d1_databases": [
     {

@@ -1,0 +1,173 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - FORMULIR KRS MAHASISWA (SERVER-SIDE SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + CLOUDFLARE D1 KONTRAK ENGINE
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanNotifikasi = "";
+let tipeNotifikasi = "";
+let daftarMatkul: any[] = [];
+let krsSudahAda = false;
+
+// 🛡️ GATEKEEPER PROTECTION: Ambil session cookie mahasiswa
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "mahasiswa") {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding missing" }, { status: 500 });
+}
+
+try {
+  // 1. CEK IDENTITAS AKUN MAHASISWA DI DATABASE
+  const mhsId: any = await db.prepare("SELECT id FROM pengguna_siakad WHERE nomor_induk = ?").bind(sessionNim).first();
+  
+  if (mhsId) {
+    // 2. CEK APAKAH MAHASISWA SUDAH PERNAH ISI KRS SEMESTER INI
+    const cekKrsInduk: any = await db.prepare(
+      "SELECT id, status_krs FROM krs_induk WHERE mahasiswa_id = ? AND tahun_akademik = '2026/2027' AND semester_aktif = 1"
+    ).bind(mhsId.id).first();
+
+    if (cekKrsInduk && cekKrsInduk.status_krs !== 'draft') {
+      krsSudahAda = true;
+      pesanNotifikasi = `KRS Anda sudah terkunci dengan status: ${cekKrsInduk.status_krs.toUpperCase()}. Silakan hubungi Dosen Wali Anda.`;
+      tipeNotifikasi = "success";
+    }
+
+    // 3. AMBIL DAFTAR MATA KULIAH DARI DATABASE SEEDER TADI SORE
+    const matkulResult = await db.prepare("SELECT * FROM master_matakuliah WHERE semester_target = 1").all();
+    daftarMatkul = matkulResult.results || [];
+
+    // 🏁 ACTION ENGINE: Jika mahasiswa menekan tombol "Kunci & Ajukan KRS"
+    if (Astro.request.method === "POST" && !krsSudahAda) {
+      const dataForm = await Astro.request.formData();
+      const matkulTerpilih = dataForm.getAll("matkul_id");
+
+      if (matkulTerpilih.length === 0) {
+        throw new Error("Wajib memilih minimal 1 mata kuliah, Chief!");
+      }
+
+      // A. Ambil atau Buat Krs Induk Baru
+      let krsIndukId = cekKrsInduk?.id;
+      if (!krsIndukId) {
+        const insertInduk: any = await db.prepare(
+          "INSERT INTO krs_induk (mahasiswa_id, tahun_akademik, semester_aktif, status_spp, status_krs, dosen_wali_id) VALUES (?, '2026/2027', 1, 'lunas', 'pending_approval', 2) RETURNING id"
+        ).bind(mhsId.id).first();
+        krsIndukId = insertInduk.id;
+      } else {
+        await db.prepare("UPDATE krs_induk SET status_krs = 'pending_approval' WHERE id = ?").bind(krsIndukId).run();
+      }
+
+      // B. Injeksi Item Detail Matkul Menggunakan Taktik Batch Anti-Gagal
+      const pernyataanBatch = matkulTerpilih.map((idMatkul) => 
+        db.prepare("INSERT OR IGNORE INTO krs_detail (krs_id, matkul_id) VALUES (?, ?)")
+          .bind(krsIndukId, parseInt(idMatkul.toString()))
+      );
+      await db.batch(pernyataanBatch);
+
+      krsSudahAda = true;
+      pesanNotifikasi = "KRS Berhasil disimpan! Status saat ini: PENDING APPROVAL DOSEN WALI.";
+      tipeNotifikasi = "success";
+    }
+  }
+} catch (error: any) {
+  pesanNotifikasi = error.message;
+  tipeNotifikasi = "error";
+}
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Isi KRS Digital - STIT YA'MAL</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- HEADER NAVIGASI SULTAN SINKRON -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem;"><a href="/mahasiswa/dashboard" style="color: #ffffff; text-decoration: none;">🏛️ SIAKAD MAHASISWA</a> ➔ ISI KRS</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">👤 {sessionNama}</div>
+    </header>
+
+    <main style="max-width: 1100px; margin: 0 auto; padding: 40px 20px;">
+      
+      <!-- NOTIFIKASI BANNER SINKRON -->
+      {pesanNotifikasi && (
+        <div style={`padding: 16px; border-radius: 8px; font-weight: 600; margin-bottom: 24px; font-size: 0.9rem;
+          background-color: ${tipeNotifikasi === 'error' ? '#fee2e2' : '#dcfce7'};
+          border: 1px solid ${tipeNotifikasi === 'error' ? '#fca5a5' : '#bbf7d0'};
+          color: ${tipeNotifikasi === 'error' ? '#991b1b' : '#166534'};`}>
+          {pesanNotifikasi}
+        </div>
+      )}
+
+      <!-- SASIS UTAMA FORM PENGISIAN KRS -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <div style="border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 24px;">
+          <h2 style="margin: 0; color: #005d6c; font-weight: 800;">Lembar Kontrak Kuliah (KRS Digital)</h2>
+          <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.88rem;">Tahun Akademik: <b>2026/2027</b> | Semester: <b>1 (Ganjil)</b> | Batas Maksimal: <b>24 SKS</b></p>
+        </div>
+
+        <form method="POST">
+          <div style="overflow-x: auto; margin-bottom: 24px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left;">
+              <thead>
+                <tr style="border-bottom: 2px solid #e5e7eb; color: #005d6c; font-weight: bold; background-color: #f8fafc;">
+                  <th style="padding: 14px 12px; text-align: center; width: 60px;">PILIH</th>
+                  <th style="padding: 14px 12px;">KODE MATKUL</th>
+                  <th style="padding: 14px 12px;">NAMA MATA KULIAH ACADEMIC</th>
+                  <th style="padding: 14px 12px; text-align: center;">BOBOT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {daftarMatkul.map((matkul) => (
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 14px 12px; text-align: center;">
+                      <input 
+                        type="checkbox" 
+                        name="matkul_id" 
+                        value={matkul.id} 
+                        disabled={krsSudahAda}
+                        style="width: 18px; height: 18px; cursor: pointer;"
+                      />
+                    </td>
+                    <td style="padding: 14px 12px; font-weight: bold; color: #005d6c;">{matkul.kode_matkul}</td>
+                    <td style="padding: 14px 12px; font-weight: 500; color: #111827;">{matkul.nama_matkul}</td>
+                    <td style="padding: 14px 12px; text-align: center; font-weight: 700; color: #475569;">{matkul.sks} SKS</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- BUTTON SUBMIT CONTROLLER SULTAN -->
+          {!krsSudahAda ? (
+            <button 
+              type="submit" 
+              style="padding: 14px 28px; background-color: #005d6c; color: #ffffff; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: bold; cursor: pointer; transition: background-color 0.15s;"
+              onmouseover="this.style.backgroundColor='#0b6170'"
+              onmouseout="this.style.backgroundColor='#005d6c'"
+            >
+              🔒 Kunci & Ajukan KRS Baru ➔
+            </button>
+          ) : (
+            <div style="display: inline-block; padding: 12px 24px; background-color: #f1f5f9; color: #94a3b8; border-radius: 8px; font-size: 0.9rem; font-weight: bold; border: 1px dashed #cbd5e1;">
+              🔒 Formulir Terkunci (Sudah Diajukan)
+            </div>
+          )}
+          
+          <a href="/mahasiswa/dashboard" style="margin-left: 16px; color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none;">Kembali ke Dashboard</a>
+        </form>
+      </div>
+
+    </main>
+  </body>
+</html>
