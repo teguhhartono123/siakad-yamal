@@ -1,10 +1,9 @@
 ---
 // =========================================================================
 // 🏛️ REPUBLIK PORTAL SIAKAD - PRIVAT DASHBOARD MAHASISWA (SERVER-SIDE SSR)
-// 🎓 STIT YA'MAL TANGERANG - 100% AMAN JAYA & SPEK ENTERPRISE COOKE CHECK
+// 🎓 STIT YA'MAL TANGERANG - FIXED GRID UI/UX REFINEMENT (ANTI-GANTUNG)
 // =========================================================================
 
-// 🛡️ GATEKEEPER PROTECTION: Tendang paksa balik ke login jika ada user penyusup yang belum login cookie!
 const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
 const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
 const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
@@ -22,14 +21,16 @@ if (!sessionNim || sessionRole !== "mahasiswa") {
   </head>
   <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
     
-    <!-- TOP BAR PANEL NAVIGASI SULTAN -->
+    <!-- TOP BAR PANEL NAVIGASI SULTAN (SINKRONISASI LINK BIODATA SECARA ERGONOMIS) -->
     <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
       <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;">🏛️ SIAKAD STIT YA'MAL</div>
       <div style="display: flex; align-items: center; gap: 16px;">
-        <span style="font-size: 0.9rem; font-weight: 600; background-color: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 6px;">
-          👤 {sessionNama} ({sessionNim})
-        </span>
-        <!-- TOMBOL LOGOUT SEUPIL ANTI-RIBET -->
+        
+        <!-- 🟢 LINK BIODATA YANG SUDAH EVAKUASI PINDAH KE ATAS MENJADI BADGE CAPSULE PREMIUM -->
+        <a href="/mahasiswa/biodata" style="font-size: 0.85rem; font-weight: 700; color: #ffffff; text-decoration: none; background-color: rgba(255,255,255,0.15); padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.25); display: flex; align-items: center; gap: 6px; transition: all 0.15s;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.3)';" onmouseout="this.style.backgroundColor='rgba(255,255,255,0.15)';">
+          👤 {sessionNama} ({sessionNim}) <span style="font-size: 0.75rem;">➔</span>
+        </a>
+        
         <a href="/logout" style="color: #ffffff; font-size: 0.85rem; font-weight: bold; text-decoration: none; border: 1px solid #ffffff; padding: 6px 12px; border-radius: 6px; transition: all 0.15s;" onmouseover="this.style.backgroundColor='#ffffff'; this.style.color='#005d6c'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='#ffffff'">Keluar</a>
       </div>
     </header>
@@ -38,38 +39,55 @@ if (!sessionNim || sessionRole !== "mahasiswa") {
     <main style="max-width: 1100px; margin: 0 auto; padding: 40px 20px;">
       
       <!-- WELCOME HERO BANNER -->
-      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); margin-bottom: 30px;">
-        <h2 style="margin: 0; font-size: 1.8rem; color: #005d6c; font-weight: 800;">
-          Selamat Datang, {sessionNama}! 👋
-        </h2>
-        <p style="margin: 8px 0 0 0; color: #4b5563; font-size: 1rem; line-height: 1.5;">
-          Anda berhasil masuk ke Pangkalan Data Akademik Mahasiswa. Silakan pilih menu di bawah ini untuk memulai aktivitas perkuliahan Anda.
-        </p>
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+        <div>
+          <h2 style="margin: 0; font-size: 1.8rem; color: #005d6c; font-weight: 800;">
+            Selamat Datang, {sessionNama}! 👋
+          </h2>
+          <p style="margin: 8px 0 0 0; color: #4b5563; font-size: 1rem; line-height: 1.5;">
+            Anda berhasil masuk ke Pangkalan Data Akademik Mahasiswa. Silakan pilih menu di bawah ini untuk memulai aktivitas perkuliahan Anda.
+          </p>
+        </div>
+        
+        <!-- 🟢 KANCING ALTERNATIF: TOMBOL KLIK BIODATA TAMpAN DI DALAM BANNER HERO -->
+        <a href="/mahasiswa/biodata" style="padding: 10px 20px; background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.88rem; font-weight: bold; text-decoration: none; transition: all 0.15s;" onmouseover="this.style.backgroundColor='#e2e8f0'; this.style.color='#005d6c';" onmouseout="this.style.backgroundColor='#f1f5f9'; this.style.color='#475569';">🔍 Lihat Detail Profil</a>
       </div>
 
-      <!-- SAKLAR MENU HUB AKADEMIK MAHASISWA -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+      <!-- SAKLAR MENU HUB 3 KARTU KEMBAR -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
         
-        <!-- MENU CARD 1: PENGISIAN KRS -->
-        <div style="background-color: #ffffff; padding: 28px; border-radius: 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 12px;">
+        <!-- CARD MENU 1: KRS -->
+        <div style="background-color: #ffffff; padding: 28px; border-radius: 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);">
           <div style="font-size: 2rem;">📝</div>
           <h3 style="margin: 0; color: #005d6c; font-weight: bold; font-size: 1.25rem;">Kartu Rencana Studi (KRS)</h3>
           <p style="margin: 0; color: #64748b; font-size: 0.88rem; line-height: 1.5; flex-grow: 1;">
             Lakukan pendaftaran kontrak paket mata kuliah semester ganjil tahun akademik 2026/2027 secara digital.
           </p>
-          <a href="/mahasiswa/krs" style="text-align: center; margin-top: 12px; padding: 12px; background-color: #005d6c; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">Mulai Isi KRS ➔</a>
+          <a href="/mahasiswa/krs" style="text-align: center; margin-top: 12px; padding: 12px; background-color: #005d6c; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">Mulal Isi KRS ➔</a>
         </div>
 
-        <!-- MENU CARD 2: KHS / NILAI AKADEMIK -->
-        <div style="background-color: #ffffff; padding: 28px; border-radius: 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 12px;">
+        <!-- CARD MENU 2: KHS -->
+        <div style="background-color: #ffffff; padding: 28px; border-radius: 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);">
           <div style="font-size: 2rem;">📊</div>
           <h3 style="margin: 0; color: #005d6c; font-weight: bold; font-size: 1.25rem;">Kartu Hasil Studi (KHS)</h3>
           <p style="margin: 0; color: #64748b; font-size: 0.88rem; line-height: 1.5; flex-grow: 1;">
             Lihat rekapitulasi nilai akhir mata kuliah, bobot SKS berjalan, hasil UTS/UAS, beserta kalkulator IPK otomatis Anda.
           </p>
-          <!-- 🟢 GANTI JADI TOMBOL LIVE SULTAN BARU: -->
-         <a href="/mahasiswa/khs" style="text-align: center; margin-top: 12px; padding: 12px; background-color: #005d6c; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">Lihat KHS Digital ➔</a>
-         </div>
+          <a href="/mahasiswa/khs" style="text-align: center; margin-top: 12px; padding: 12px; background-color: #005d6c; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">Lihat KHS Digital ➔</a>
+          <!-- 🟢 TAUTAN TOMBOL BARU UNTUK LIHAT RIWAYAT ARSIP KRS (ASTRO V6): -->
+            <a href="/mahasiswa/krs-riwayat" style="text-align: center; margin-top: 8px; padding: 10px; background-color: #f1f5f9; color: #475569; text-decoration: none; border: 1px solid #cbd5e1; border-radius: 8px; font-weight: bold; font-size: 0.85rem; transition: all 0.15s;" onmouseover="this.style.backgroundColor='#e2e8f0'; this.style.color='#005d6c';" onmouseout="this.style.backgroundColor='#f1f5f9'; this.style.color='#475569';">📜 Lihat Riwayat Kontrak KRS ➔</a>
+
+        </div>
+
+        <!-- CARD MENU 3: FINANSIAL SPP -->
+        <div style="background-color: #ffffff; padding: 28px; border-radius: 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);">
+          <div style="font-size: 2rem;">💳</div>
+          <h3 style="margin: 0; color: #005d6c; font-weight: bold; font-size: 1.25rem;">Informasi Biaya SPP</h3>
+          <p style="margin: 0; color: #64748b; font-size: 0.88rem; line-height: 1.5; flex-grow: 1;">
+            Monitor histori cicilan biaya kuliah pokok, cek tagihan berjalan, serta cetak kwitansi resi pembayaran resmi dari keuangan.
+          </p>
+          <a href="/mahasiswa/spp" style="text-align: center; margin-top: 12px; padding: 12px; background-color: #475569; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#334155'" onmouseout="this.style.backgroundColor='#475569'">Sidak Keuangan SPP ➔</a>
+        </div>
 
       </div>
 

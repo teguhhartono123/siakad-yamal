@@ -1,0 +1,298 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - PRIVAT DASHBOARD ADMIN BAAK (SERVER-SIDE SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + SEARCH & FILTER LOGS ENGINE D1
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanNotifikasi = "";
+let statistik = { totalMhs: 0, totalDsn: 0, totalMatkul: 0 };
+let daftarAudit: any[] = [];
+
+// 📈 BAR CHART 1: DATA HISTOGRAM IPK MAHASISWA
+let histogramData = [
+  { label: "IPK < 2.00", count: 0, percentage: 0 },
+  { label: "IPK 2.00-3.00", count: 0, percentage: 0 },
+  { label: "IPK 3.01-3.50", count: 0, percentage: 0 },
+  { label: "IPK 3.51-4.00", count: 0, percentage: 0 }
+];
+
+// 💰 BAR CHART 2: DATA HISTOGRAM KEUANGAN SPP MAHASISWA
+let keuanganData = [
+  { label: "✓ LUNAS SAH", count: 0, percentage: 0, color: "#16a34a" },
+  { label: "⚠️ TUNGGAKAN", count: 0, percentage: 0, color: "#dc2626" }
+];
+
+// 🛡️ GATEKEEPER PROTECTION & SESSION IDENTIFICATION
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "admin") {
+  return Astro.redirect('/login');
+}
+
+// 📡 CYBER FORENSICS: Ambil alamat IP asli
+const headers = Astro.request.headers;
+const liveIpAddress = headers.get("cf-connecting-ip") || headers.get("x-forwarded-for") || "127.0.0.1";
+
+// 🔍 SEARCH & FILTER CONTROLLER: Tangkap input kata kunci dari URL Query Parameter (GET method)
+const queryCariUrl = Astro.url.searchParams.get("search")?.trim() || "";
+const queryPeranUrl = Astro.url.searchParams.get("role")?.trim() || "";
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding missing" }, { status: 500 });
+}
+
+try {
+  // 🔥 AUTO LOG INJECTION: Catat otomatis jejak langkah admin setiap kali membuka halaman dasbor
+  await db.prepare(`
+    INSERT INTO riwayat_audit_siakad (nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip)
+    VALUES (?, ?, 'Mengakses Konsol Central BAAK HUB via SSR', ?)
+  `).bind(sessionNama, sessionRole, liveIpAddress).run();
+
+  // 1. FORENSIK HITUNG AGREGASI DATA UTAMA KAMPUS
+  const countMhs = await db.prepare("SELECT COUNT(*) as total FROM pengguna_siakad WHERE peran = 'mahasiswa'").first();
+  const countDsn = await db.prepare("SELECT COUNT(*) as total FROM pengguna_siakad WHERE peran = 'dosen'").first();
+  const countMatkul = await db.prepare("SELECT COUNT(*) as total FROM master_matakuliah").first();
+
+  statistik = {
+    totalMhs: (countMhs?.total as number) || 0,
+    totalDsn: (countDsn?.total as number) || 0,
+    totalMatkul: (countMatkul?.total as number) || 0
+  };
+
+  // 2. REAL-TIME SQL QUERY: HITUNG DATA STATUS SPP DARI TABEL krs_induk
+  const queryLunas: any = await db.prepare("SELECT COUNT(*) as total FROM krs_induk WHERE status_spp = 'lunas'").first();
+  const queryTunggakan: any = await db.prepare("SELECT COUNT(*) as total FROM krs_induk WHERE status_spp = 'tunggakan'").first();
+  
+  const totalLunas = (queryLunas?.total as number) || 0;
+  const totalTunggakan = (queryTunggakan?.total as number) || 0;
+  const totalMhsFinansial = totalLunas + totalTunggakan;
+
+  keuanganData.count = totalLunas;
+  keuanganData.count = totalTunggakan;
+
+  if (totalMhsFinansial > 0) {
+    keuanganData.percentage = Math.round((totalLunas / totalMhsFinansial) * 100);
+    keuanganData.percentage = Math.round((totalTunggakan / totalMhsFinansial) * 100);
+  } else {
+    keuanganData.count = 1;
+    keuanganData.percentage = 100;
+  }
+
+  // 3. ANALISIS GRAFIK HISTOGRAM IPK MAHASISWA
+  const krsApproved = await db.prepare("SELECT COUNT(*) as total FROM krs_induk WHERE status_krs = 'approved'").first();
+  const totalApproved = (krsApproved?.total as number) || 0;
+
+  if (totalApproved === 0) {
+    histogramData.count = 1; 
+    histogramData.percentage = 100;
+  } else {
+    let totalMhsDinilai = 0;
+    histogramData.forEach(item => { totalMhsDinilai += item.count; });
+    histogramData.forEach(item => {
+      if (totalMhsDinilai > 0) {
+        item.percentage = Math.round((item.count / totalMhsDinilai) * 100);
+      }
+    });
+  }
+
+  // 🛡️ DYNAMIC SEARCH ALGORTIHM ENGINE: Susun kueri SQL bersyarat secara elastis (Safe SQL Injection)
+  let queryBaseSql = "SELECT id, nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip, jejak_waktu FROM riwayat_audit_siakad WHERE 1=1";
+  let parameterQuery: any[] = [];
+
+  if (queryCariUrl) {
+    queryBaseSql += " AND (nama_pengguna LIKE ? OR aksi_aktivitas LIKE ? OR alamat_ip LIKE ?)";
+    const wildcard = `%${queryCariUrl}%`;
+    parameterQuery.push(wildcard, wildcard, wildcard);
+  }
+
+  if (queryPeranUrl) {
+    queryBaseSql += " AND peran_pengguna = ?";
+    parameterQuery.push(queryPeranUrl);
+  }
+
+  queryBaseSql += " ORDER BY id DESC LIMIT 5";
+
+  // Tarik data stream hasil filter langsung dari rahim database D1
+  const auditResult = await db.prepare(queryBaseSql).bind(...parameterQuery).all();
+  daftarAudit = auditResult.results || [];
+
+} catch (error: any) {
+  pesanNotifikasi = `Gagal memuat telemetri siber search engine: ${error.message}`;
+}
+---
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Dashboard Admin BAAK - SIAKAD STIT YA'MAL</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- TOP BAR PANEL NAVIGASI SULTAN -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;">🏛️ Central BAAK Hub</div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <span style="font-size: 0.9rem; font-weight: 600; background-color: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 6px;">
+          ⚙️ {sessionNama}
+        </span>
+        <a href="/logout" style="color: #ffffff; font-size: 0.85rem; font-weight: bold; text-decoration: none; border: 1px solid #ffffff; padding: 6px 12px; border-radius: 6px; transition: all 0.15s;">Keluar</a>
+      </div>
+    </header>
+
+    <main style="max-width: 1100px; margin: 0 auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 30px;">
+      
+      <!-- HERO BANNER ADMIN -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <h2 style="margin: 0; font-size: 1.8rem; color: #005d6c; font-weight: 800;">
+          Pusat Kontrol Akademik & Finansial (BAAK HUB) ⚙️
+        </h2>
+        <p style="margin: 8px 0 0 0; color: #4b5563; font-size: 1rem; line-height: 1.5;">
+          Selamat datang di konsol super admin. Monitor statistik pendaftaran, jumlah dosen aktif, grafik sebaran nilai IPK, serta laporan arus sirkulasi SPP keuangan secara real-time.
+        </p>
+      </div>
+
+      <!-- GRID MONITORING KAMPUS -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb;">
+          <div style="font-size: 0.85rem; color: #4b5563; font-weight: bold; text-transform: uppercase;">🎓 Total Mahasiswa Aktif</div>
+          <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalMhs} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Jiwa</span></div>
+        </div>
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb;">
+          <div style="font-size: 0.85rem; color: #4b5563; font-weight: bold; text-transform: uppercase;">👨‍🏫 Total Dosen Terdaftar</div>
+          <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalDsn} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Dosen</span></div>
+        </div>
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb;">
+          <div style="font-size: 0.85rem; color: #4b5563; font-weight: bold; text-transform: uppercase;">📚 Total Mata Kuliah Dibuka</div>
+          <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalMatkul} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Matkul</span></div>
+        </div>
+      </div>
+
+      <!-- DUAL HISTOGRAM WORKSPACE -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 30px;">
+        
+        <!-- BAGAN 1: HISTOGRAM IPK -->
+        <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; color: #005d6c; font-weight: 800; font-size: 1.2rem;">📊 Histogram Sebaran Nilai IPK</h3>
+          <p style="margin: 0 0 24px 0; color: #64748b; font-size: 0.85rem;">Parameter: <b>Seluruh Mahasiswa Angkatan Baru</b></p>
+          <div style="display: flex; flex-direction: column; gap: 18px;">
+            {histogramData.map((item) => (
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="width: 110px; font-size: 0.85rem; font-weight: 700; color: #374151;">{item.label}</div>
+                <div style="flex-grow: 1; background-color: #f1f5f9; height: 24px; border-radius: 4px; overflow: hidden; border: 1px solid #e2e8f0;">
+                  <div style={`background-color: #005d6c; height: 100%; width: ${item.percentage || 1}%; transition: width 0.5s ease-in-out; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; box-sizing: border-box;`}>
+                    {item.percentage > 0 && <span style="color: #ffffff; font-size: 0.7rem; font-weight: bold;">{item.percentage}%</span>}
+                  </div>
+                </div>
+                <div style="width: 50px; font-size: 0.85rem; font-weight: bold; color: #005d6c; text-align: right;">{item.count} mhs</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <!-- BAGAN 2: HISTOGRAM SPP -->
+        <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb;">
+          <h3 style="margin: 0 0 6px 0; color: #005d6c; font-weight: 800; font-size: 1.2rem;">💰 Laporan Arus Kas SPP Mahasiswa</h3>
+          <p style="margin: 0 0 24px 0; color: #64748b; font-size: 0.85rem;">Parameter: <b>Verifikasi Keuangan SPP Pokok Semester 1</b></p>
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            {keuanganData.map((item) => (
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="width: 110px; font-size: 0.85rem; font-weight: 700; color: #374151;">{item.label}</div>
+                <div style="flex-grow: 1; background-color: #f1f5f9; height: 24px; border-radius: 4px; overflow: hidden; border: 1px solid #e2e8f0;">
+                  <div style={`background-color: ${item.color}; height: 100%; width: ${item.percentage || 1}%; transition: width 0.5s ease-in-out; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; box-sizing: border-box;`}>
+                    {item.percentage > 0 && <span style="color: #ffffff; font-size: 0.7rem; font-weight: bold;">{item.percentage}%</span>}
+                  </div>
+                </div>
+                <div style={`width: 50px; font-size: 0.85rem; font-weight: bold; color: ${item.color}; text-align: right;`}>{item.count} mhs</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+      <!-- 🛡️ FORENSIK AUDIT LOGS DENGAN PANEL FITUR PENCARIAN REAL-TIME -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); margin-top: 30px;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f1f5f9; padding-bottom: 14px; margin-bottom: 24px;">
+          <div>
+            <h3 style="margin: 0; color: #005d6c; font-weight: 800; font-size: 1.25rem;">🛡️ Forensik Audit Log Aktivitas Sistem</h3>
+            <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.85rem;">Jejak Kamar Digital: <b>Brankas Keamanan Enkripsi D1 Serverless Blackbox Logs</b></p>
+          </div>
+          <span style="background-color: #dcfce7; color: #166534; font-size: 0.75rem; font-weight: bold; padding: 6px 12px; border-radius: 6px; border: 1px solid #bbf7d0;">📡 LIVE INTERCEPTOR ON</span>
+        </div>
+
+        <!-- 🔍 BARIS BOX PANEL FILTER PENCARIAN SULTAN (GET INTERFACE) -->
+        <form method="GET" style="margin-bottom: 24px; display: flex; flex-wrap: wrap; gap: 14px; background-color: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; align-items: center;">
+          <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1; min-width: 240px;">
+            <label style="font-size: 0.75rem; color: #475569; font-weight: 700; text-transform: uppercase;">Cari Jejak Aktivitas / IP Address</label>
+            <input 
+              type="text" 
+              name="search" 
+              value={queryCariUrl} 
+              placeholder="Ketik alamat IP, nama aktor, atau jenis aksi..." 
+              style="padding: 10px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.88rem; color: #0f172a; outline: none;"
+            />
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 4px; width: 160px;">
+            <label style="font-size: 0.75rem; color: #475569; font-weight: 700; text-transform: uppercase;">Filter Peran (Role)</label>
+            <select name="role" style="padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.88rem; background-color: #ffffff; color: #0f172a; cursor: pointer;">
+              <option value="">-- Semua Role --</option>
+              <option value="admin" selected={queryPeranUrl === 'admin'}>ADMIN</option>
+              <option value="dosen" selected={queryPeranUrl === 'dosen'}>DOSEN</option>
+              <option value="mahasiswa" selected={queryPeranUrl === 'mahasiswa'}>MAHASISWA</option>
+            </select>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 18px;">
+            <button type="submit" style="padding: 11px 22px; background-color: #005d6c; color: #ffffff; border: none; border-radius: 6px; font-size: 0.88rem; font-weight: bold; cursor: pointer; transition: background-color 0.15s;">🔍 Saring Data</button>
+            { (queryCariUrl || queryPeranUrl) && (
+              <a href="/admin/dashboard" style="padding: 10px 16px; background-color: #e2e8f0; color: #475569; text-decoration: none; border-radius: 6px; font-size: 0.88rem; font-weight: bold; text-align: center;">Reset</a>
+            )}
+          </div>
+        </form>
+
+        <!-- DATA TABLE VIEW LOGS -->
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left;">
+            <thead>
+              <tr style="border-bottom: 2px solid #e5e7eb; color: #005d6c; font-weight: bold; background-color: #f8fafc;">
+                <th style="padding: 12px 10px; width: 60px; text-align: center;">LOG ID</th>
+                <th style="padding: 12px 10px; width: 160px;">AKTOR OPERASI</th>
+                <th style="padding: 12px 10px; width: 90px; text-align: center;">ROLE</th>
+                <th style="padding: 12px 10px; width: 140px; color: #dc2626; font-weight: bold;">🌐 INTERCEPT IP</th>
+                <th style="padding: 12px 10px;">BENTUK AKSI AKTIVITAS DIGITAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {daftarAudit.length === 0 ? (
+                <tr>
+                  <td colspan="5" style="padding: 24px; text-align: center; color: #64748b; font-style: italic;">
+                    Tidak ditemukan jejak forensik siber yang cocok dengan saringan Anda, Doc.
+                  </td>
+                </tr>
+              ) : (
+                daftarAudit.map((log: any) => (
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 12px 10px; text-align: center; font-weight: bold; color: #475569;">#{log.id}</td>
+                    <td style="padding: 12px 10px; font-weight: bold; color: #111827;">{log.nama_pengguna}</td>
+                    <td style="padding: 12px 10px; text-align: center;">
+                      <span style="background-color: #e0f2fe; color: #0369a1; padding: 3px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: bold;">{log.peran_pengguna.toUpperCase()}</span>
+                    </td>
+                    <td style="padding: 12px 10px; font-family: monospace; font-weight: bold; color: #dc2626; font-size: 0.9rem;">{log.alamat_ip}</td>
+                    <td style="padding: 12px 10px; color: #374151; font-weight: 500;">{log.aksi_aktivitas}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </body>
+</html>

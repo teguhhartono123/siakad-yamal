@@ -1,0 +1,137 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - RIWAYAT KONTRAK KRS MAHASISWA (SERVER SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + REAL-TIME D1 RELATIONAL COUPLING
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanNotifikasi = "";
+let daftarMatkulDiambil: any[] = [];
+let ringkasanKrs: any = null;
+
+// 🛡️ GATEKEEPER PROTECTION: Ambil session cookie mahasiswa Parto
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "mahasiswa") {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding missing" }, { status: 500 });
+}
+
+try {
+  // 1. CARI DATA INDUK KONTRAK KRS BERDASARKAN NIM MAHASISWA
+  const indukResult: any = await db.prepare(`
+    SELECT ki.id, ki.tahun_akademik, ki.semester_aktif, ki.status_krs, ki.status_spp
+    FROM krs_induk ki
+    JOIN pengguna_siakad ps ON ki.mahasiswa_id = ps.id
+    WHERE ps.nomor_induk = ?
+    LIMIT 1
+  `).bind(sessionNim).first();
+
+  if (indukResult) {
+    ringkasanKrs = indukResult;
+
+    // 2. QUERY JOIN STRATEGIS: Tarik seluruh baris kelas mata kuliah dari rahim database D1
+    const matkulResult = await db.prepare(`
+      SELECT mm.kode_matkul, mm.nama_matkul, mm.sks, mm.semester_target
+      FROM krs_detail kd
+      JOIN master_matakuliah mm ON kd.matakuliah_id = mm.id
+      WHERE kd.induk_id = ?
+    `).bind(indukResult.id).all();
+
+    daftarMatkulDiambil = matkulResult.results || [];
+  }
+} catch (error: any) {
+  pesanNotifikasi = `Gagal memuat arsip riwayat kontrak kuliah: ${error.message}`;
+}
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Riwayat Kontrak KRS - SIAKAD STIT YA'MAL</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- TOP BAR PANEL NAVIGASI SULTAN -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem;"><a href="/mahasiswa/dashboard" style="color: #ffffff; text-decoration: none;">🏛️ SIAKAD MAHASISWA</a> ➔ Riwayat KRS</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">👤 {sessionNama}</div>
+    </header>
+
+    <main style="max-width: 1000px; margin: 0 auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 24px;">
+      
+      {pesanNotifikasi && (
+        <div style="padding: 16px; background-color: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px; color: #991b1b; font-weight: bold;">
+          {pesanNotifikasi}
+        </div>
+      )}
+
+      <!-- KARTU SUMMARY STATUS KRS BERJALAN -->
+      {ringkasanKrs && (
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 0.8rem; color: #64748b; font-weight: bold; text-transform: uppercase;">Tahun Akademik / Semester</div>
+            <div style="font-size: 1.2rem; font-weight: 800; color: #005d6c; margin-top: 4px;">{ringkasanKrs.tahun_akademik} - Semester {ringkasanKrs.semester_aktif}</div>
+          </div>
+          <div>
+            <div style="font-size: 0.8rem; color: #64748b; font-weight: bold; text-transform: uppercase; text-align: center;">Status Pengesahan KRS</div>
+            <div style="margin-top: 6px; text-align: center;">
+              {ringkasanKrs.status_krs === 'approved' ? (
+                <span style="background-color: #dcfce7; color: #15803d; padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: bold; border: 1px solid #bbf7d0;">✓ APPROVED (SAH)</span>
+              ) : (
+                <span style="background-color: #fef9c3; color: #854d0e; padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: bold; border: 1px solid #fef08a;">⏳ PENDING APPROVAL</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <!-- TABEL REKAPITULASI DAFTAR KONTRAK KULIAH RIIL -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <h3 style="margin: 0 0 20px 0; color: #005d6c; font-weight: 800; font-size: 1.3rem;">📋 Lembar Hasil Kontrak Mata Kuliah</h3>
+        
+        {daftarMatkulDiambil.length === 0 ? (
+          <p style="color: #64748b; font-size: 0.92rem; margin: 0; padding: 30px; text-align: center; background-color: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
+            Anda belum memiliki riwayat kontrak mata kuliah aktif untuk semester ini, Chief!
+          </p>
+        ) : (
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left;">
+              <thead>
+                <tr style="border-bottom: 2px solid #e5e7eb; color: #005d6c; font-weight: bold; background-color: #f8fafc;">
+                  <th style="padding: 14px 12px; width: 120px;">KODE MATKUL</th>
+                  <th style="padding: 14px 12px;">NAMA MATA KULIAH KURIKULUM</th>
+                  <th style="padding: 14px 12px; text-align: center; width: 80px;">SKS</th>
+                  <th style="padding: 14px 12px; text-align: center; width: 120px;">SEMESTER TARGET</th>
+                </tr>
+              </thead>
+              <tbody>
+                {daftarMatkulDiambil.map((matkul) => (
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 14px 12px; font-weight: bold; color: #475569;">{matkul.kode_matkul}</td>
+                    <td style="padding: 14px 12px; font-weight: 600; color: #111827;">{matkul.nama_matkul}</td>
+                    <td style="padding: 14px 12px; text-align: center; font-weight: bold; color: #005d6c;">{matkul.sks} SKS</td>
+                    <td style="padding: 14px 12px; text-align: center; font-weight: 600; color: #64748b;">Semester {matkul.semester_target}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div style="margin-top: 30px; padding-top: 16px; border-top: 1px solid #f1f5f9; text-align: center;">
+          <a href="/mahasiswa/dashboard" style="color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none;">➔ Kembali ke Dashboard Utama Mahasiswa</a>
+        </div>
+      </div>
+
+    </main>
+  </body>
+</html>

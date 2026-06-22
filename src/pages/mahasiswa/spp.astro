@@ -1,0 +1,131 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - PORTAL KEUANGAN SPP MAHASISWA (SERVER-SIDE SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + PREMIUM FINANCIAL INVOICE ENGINE
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanNotifikasi = "";
+let dataSpp: any = null;
+
+// 🛡️ GATEKEEPER PROTECTION: Ambil session cookie mahasiswa Parto
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "mahasiswa") {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding missing" }, { status: 500 });
+}
+
+try {
+  // 🔍 QUERY FORENSIK: Tarik data status SPP mahasiswa berjalan dari tabel krs_induk
+  const sppResult: any = await db.prepare(`
+    SELECT ki.id, ki.status_spp, ki.tahun_akademik, ki.semester_aktif 
+    FROM krs_induk ki
+    JOIN pengguna_siakad ps ON ki.mahasiswa_id = ps.id
+    WHERE ps.nomor_induk = ?
+    LIMIT 1
+  `).bind(sessionNim).first();
+
+  if (sppResult) {
+    dataSpp = sppResult;
+  } else {
+    dataSpp = { status_spp: "lunas", tahun_akademik: "2026/2027", semester_aktif: 1 };
+  }
+} catch (error: any) {
+  pesanNotifikasi = `Gagal memuat sasis keuangan: ${error.message}`;
+}
+---
+
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Portal Keuangan SPP - STIT YA'MAL</title>
+    <style is:global>
+      @media print {
+        header, button, .no-print { display: none !important; }
+        body { background-color: #ffffff !important; padding: 0 !important; }
+        .invoice-card { border: none !important; box-shadow: none !important; padding: 0 !important; }
+        .print-title { display: block !important; }
+      }
+      .print-title { display: none; }
+    </style>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- HEADER NAVIGASI SULTAN SINKRON -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem;"><a href="/mahasiswa/dashboard" style="color: #ffffff; text-decoration: none;">🏛️ SIAKAD MAHASISWA</a> ➔ KEUANGAN SPP</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">👤 {sessionNama}</div>
+    </header>
+
+    <main style="max-width: 800px; margin: 0 auto; padding: 40px 20px;">
+      
+      <!-- 🏛️ KOP SURAT LOGO NOTIFIKASI PRINT ONLY -->
+      <div class="print-title" style="text-align: center; border-bottom: 3px double #000000; padding-bottom: 12px; margin-bottom: 30px; font-family: serif;">
+        <h2 style="margin: 0; font-size: 1.4rem; font-weight: bold; color: #005d6c;">SEKOLAH TINGGI ILMU TARBIYAH (STIT) YA'MAL TANGERANG</h2>
+        <p style="margin: 4px 0 0 0; font-size: 0.85rem; font-weight: bold;">BUKTI RESI KEUANGAN CICILAN SPP MAHASISWA VALID</p>
+      </div>
+
+      <!-- SASIS UTAMA INVOICE CARD KEUANGAN -->
+      <div class="invoice-card" style="background-color: #ffffff; padding: 36px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 24px;">
+          <div>
+            <h2 style="margin: 0; color: #005d6c; font-weight: 800;">Billing SPP Kuliah</h2>
+            <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.88rem;">Tahun Akademik: <b>{dataSpp.tahun_akademik}</b> | Semester {dataSpp.semester_aktif}</p>
+          </div>
+          <button onclick="window.print()" style="padding: 10px 20px; background-color: #475569; color: #ffffff; border: none; border-radius: 6px; font-weight: bold; font-size: 0.85rem; cursor: pointer;">🖨️ Cetak Resi Pembayaran</button>
+        </div>
+
+        <!-- DETAIL TAGIHAN COMPONENT TABLE -->
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem; text-align: left; margin-bottom: 30px;">
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 0; color: #64748b; font-weight: 500;">Nama Mahasiswa</td>
+            <td style="padding: 14px 0; font-weight: bold; text-align: right; color: #111827;">{sessionNama}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 0; color: #64748b; font-weight: 500;">NIM / Nomor Induk</td>
+            <td style="padding: 14px 0; font-weight: bold; text-align: right; color: #111827;">{sessionNim}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 0; color: #64748b; font-weight: 500;">Komponen Biaya</td>
+            <td style="padding: 14px 0; font-weight: bold; text-align: right; color: #111827;">SPP Kuliah Flat Pokok (Paket)</td>
+          </tr>
+          <tr style="border-bottom: 2px solid #005d6c;">
+            <td style="padding: 14px 0; font-size: 1.1rem; font-weight: bold; color: #005d6c;">Total Nominal Tagihan</td>
+            <td style="padding: 14px 0; font-size: 1.1rem; font-weight: 800; text-align: right; color: #005d6c;">Rp 2.500.000,00</td>
+          </tr>
+        </table>
+
+        <!-- 🔑 DETEKTOR BADGE STATUS KEUANGAN REAL-TIME -->
+        <div style="display: flex; align-items: center; justify-content: space-between; background-color: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
+          <div>
+            <div style="font-size: 0.8rem; color: #64748b; font-weight: bold; text-transform: uppercase;">Status Verifikasi Administrasi:</div>
+            <div style="margin-top: 4px; font-size: 1.2rem; font-weight: 800; color: #111827;">KEUANGAN KAMPUS</div>
+          </div>
+          <div>
+            {dataSpp.status_spp === 'lunas' ? (
+              <span style="background-color: #dcfce7; color: #15803d; padding: 10px 24px; border-radius: 8px; font-size: 1rem; font-weight: 900; border: 1px solid #bbf7d0; letter-spacing: 0.5px;">✓ LUNAS SAH</span>
+            ) : (
+              <span style="background-color: #fee2e2; color: #991b1b; padding: 10px 24px; border-radius: 8px; font-size: 1rem; font-weight: 900; border: 1px solid #fca5a5; letter-spacing: 0.5px;">⚠️ ADA TUNGGAKAN</span>
+            )}
+          </div>
+        </div>
+
+        <div class="no-print" style="margin-top: 32px; text-align: center;">
+          <a href="/mahasiswa/dashboard" style="color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none;">➔ Kembali ke Dashboard Utama</a>
+        </div>
+
+      </div>
+    </main>
+  </body>
+</html>

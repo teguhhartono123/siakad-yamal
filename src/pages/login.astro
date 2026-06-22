@@ -52,10 +52,13 @@ if (Astro.request.method === "POST") {
     Astro.cookies.set("siakad_session_nama", userAkun.nama_lengkap, { path: "/", httpOnly: true, secure: true, maxAge: 60 * 60 * 24 });
     Astro.cookies.set("siakad_session_role", userAkun.peran, { path: "/", httpOnly: true, secure: true, maxAge: 60 * 60 * 24 });
 
+    // 🟢 GANTI DAN UPGRADE MENJADI KAWAT SAKLAR SULTAN BARU YANG SEUTUHNYA (ASTRO V6):
     if (userAkun.peran === "mahasiswa") {
-      return Astro.redirect('/mahasiswa/dashboard');
+    return Astro.redirect('/mahasiswa/dashboard');
     } else if (userAkun.peran === "dosen") {
-      return Astro.redirect('/dosen/dashboard');
+    return Astro.redirect('/dosen/dashboard');
+    } else if (userAkun.peran === "admin") { // 🟢 Kancing Jalur Admin Central BAAK Lunas!
+    return Astro.redirect('/admin/dashboard');
     }
 
   } catch (error: any) {

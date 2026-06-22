@@ -1,0 +1,107 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - BIODATA PROFIL MAHASISWA (SERVER-SIDE SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + CLOUDFLARE D1 BIODATA ENGINE
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanNotifikasi = "";
+let dataProfil: any = null;
+
+// 🛡️ GATEKEEPER PROTECTION: Ambil session cookie mahasiswa
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "mahasiswa") {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding missing" }, { status: 500 });
+}
+
+try {
+  // 🔍 QUERY FORENSIK: Tarik data profil detail dari rahim database D1
+  const mhsResult: any = await db.prepare(`
+    SELECT nomor_induk, nama_lengkap, peran, tempat_lahir, tanggal_lahir, ibu_kandung 
+    FROM pengguna_siakad 
+    WHERE nomor_induk = ?
+    LIMIT 1
+  `).bind(sessionNim).first();
+
+  if (mhsResult) {
+    dataProfil = mhsResult;
+  }
+} catch (error: any) {
+  pesanNotifikasi = `Gagal memuat berkas profil siber: ${error.message}`;
+}
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Biodata Mahasiswa - SIAKAD STIT YA'MAL</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- TOP BAR PANEL NAVIGASI SULTAN -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;"><a href="/mahasiswa/dashboard" style="color: #ffffff; text-decoration: none;">🏛️ SIAKAD MAHASISWA</a> ➔ BIODATA</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">👤 {dataProfil?.nama_lengkap}</div>
+    </header>
+
+    <main style="max-width: 700px; margin: 0 auto; padding: 40px 20px;">
+      
+      <!-- HERO BIODATA CARD SULTAN -->
+      <div style="background-color: #ffffff; padding: 36px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        
+        <!-- HEADER AVATAR PROFILE DUMMY -->
+        <div style="display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #f1f5f9; padding-bottom: 24px; margin-bottom: 24px;">
+          <div style="width: 80px; height: 80px; background-color: #005d6c; color: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; border: 3px solid #cbd5e1;">
+            🤵
+          </div>
+          <div>
+            <h2 style="margin: 0; color: #005d6c; font-weight: 800; font-size: 1.6rem;">{dataProfil?.nama_lengkap}</h2>
+            <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.9rem; font-weight: bold;">NIM / NOMOR INDUK: <span style="color: #0f172a;">{dataProfil?.nomor_induk}</span></p>
+          </div>
+        </div>
+
+        <!-- TABEL DETAIL DATA DIRI KEMENTERIAN -->
+        <h3 style="margin: 0 0 16px 0; color: #005d6c; font-size: 1.1rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">📋 Informasi Riwayat Hidup Mahasiswa</h3>
+        
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem; text-align: left; margin-bottom: 30px;">
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 12px; color: #64748b; font-weight: 600; width: 200px;">Program Studi (Prodi)</td>
+            <td style="padding: 14px 12px; font-weight: bold; color: #111827;">Pendidikan Agama Islam (PAI)</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 12px; color: #64748b; font-weight: 600;">Tempat, Tanggal Lahir</td>
+            <td style="padding: 14px 12px; font-weight: bold; color: #111827;">{dataProfil?.tempat_lahir}, {dataProfil?.tanggal_lahir}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 12px; color: #64748b; font-weight: 600;">Nama Ibu Kandung</td>
+            <td style="padding: 14px 12px; font-weight: bold; color: #111827;">{dataProfil?.ibu_kandung}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 12px; color: #64748b; font-weight: 600;">Status Status Akun</td>
+            <td style="padding: 14px 12px; font-weight: bold; color: #15803d;"><span style="background-color: #dcfce7; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; border: 1px solid #bbf7d0;">MURNI AKTIF</span></td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 12px; color: #64748b; font-weight: 600;">Kasta Hak Akses</td>
+            <td style="padding: 14px 12px; font-weight: bold; color: #0369a1; text-transform: uppercase;">{dataProfil?.peran}</td>
+          </tr>
+        </table>
+
+        <!-- BUTTON LINK KEMBALI CONTROLLER -->
+        <div style="text-align: center; border-top: 1px solid #f1f5f9; padding-top: 24px;">
+          <a href="/mahasiswa/dashboard" style="color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none; transition: color 0.15s;" onmouseover="this.style.color='#005d6c'" onmouseout="this.style.color='#64748b'">➔ Kembali ke Dashboard Utama</a>
+        </div>
+
+      </div>
+    </main>
+  </body>
+</html>
