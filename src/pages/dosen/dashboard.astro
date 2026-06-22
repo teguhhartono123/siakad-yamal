@@ -1,10 +1,9 @@
 ---
 // =========================================================================
 // 🏛️ REPUBLIK PORTAL SIAKAD - PRIVAT DASHBOARD DOSEN WALI (SERVER-SIDE SSR)
-// 🎓 STIT YA'MAL TANGERANG - 100% AMAN JAYA & SPEK ENTERPRISE DOSEN GUARD
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + ERGONOMIC TOP CAPSULE UI/UX SYMMETRY
 // =========================================================================
 
-// 🛡️ GATEKEEPER PROTECTION: Blokir dan tendang paksa jika ada mahasiswa atau penyusup coba-coba masuk!
 const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
 const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
 const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
@@ -18,55 +17,63 @@ if (!sessionNim || sessionRole !== "dosen") {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
-    <title>Dashboard Dosen - SIAKAD STIT YA'MAL</title>
+    <title>Dashboard Dosen Wali - SIAKAD STIT YA'MAL</title>
   </head>
   <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
     
-    <!-- TOP BAR PANEL NAVIGASI SULTAN -->
+    <!-- TOP BAR PANEL NAVIGASI SULTAN (SINKRONISASI 100% SEPERTI SEKTOR MAHASISWA) -->
     <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
       <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;">🏛️ SIAKAD DOSEN WALI</div>
       <div style="display: flex; align-items: center; gap: 16px;">
-        <span style="font-size: 0.9rem; font-weight: 600; background-color: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 6px;">
-          👨‍🏫 {sessionNama} ({sessionNim})
-        </span>
+        
+        <!-- 🟢 KANCING 1: LENCANA KAPSUL ATAS OTOMATIS BERMUTASI MENJADI LINK BIODATA DOSEN INTERAKTIF -->
+        <a href="/dosen/profil" style="font-size: 0.85rem; font-weight: 700; color: #ffffff; text-decoration: none; background-color: rgba(255,255,255,0.15); padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.25); display: flex; align-items: center; gap: 6px; transition: all 0.15s;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.3)';" onmouseout="this.style.backgroundColor='rgba(255,255,255,0.15)';">
+          👨‍🏫 {sessionNama} ({sessionNim}) <span style="font-size: 0.75rem;">➔</span>
+        </a>
+        
         <a href="/logout" style="color: #ffffff; font-size: 0.85rem; font-weight: bold; text-decoration: none; border: 1px solid #ffffff; padding: 6px 12px; border-radius: 6px; transition: all 0.15s;" onmouseover="this.style.backgroundColor='#ffffff'; this.style.color='#005d6c'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='#ffffff'">Keluar</a>
       </div>
     </header>
 
-    <!-- MAIN DASHBOARD WORKSPACE -->
+    <!-- MAIN DASHBOARD COMPONENT WORKSPACE -->
     <main style="max-width: 1100px; margin: 0 auto; padding: 40px 20px;">
       
       <!-- WELCOME HERO BANNER DOSEN -->
-      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); margin-bottom: 30px;">
-        <h2 style="margin: 0; font-size: 1.8rem; color: #005d6c; font-weight: 800;">
-          Selamat Datang, {sessionNama}! 🌟
-        </h2>
-        <p style="margin: 8px 0 0 0; color: #4b5563; font-size: 1rem; line-height: 1.5;">
-          Selamat datang di Panel Manajemen Akademik Dosen Wali. Di sini Anda dapat melakukan pengawasan bimbingan Kartu Rencana Studi (KRS) mahasiswa serta mengunduh rekap nilai.
-        </p>
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+        <div>
+          <h2 style="margin: 0; font-size: 1.8rem; color: #005d6c; font-weight: 800;">
+            Selamat Datang, {sessionNama}! 🌟
+          </h2>
+          <p style="margin: 8px 0 0 0; color: #4b5563; font-size: 1rem; line-height: 1.5;">
+            Selamat datang di Panel Manajemen Akademik Dosen Wali. Di sini Anda dapat melakukan pengawasan bimbingan Kartu Rencana Studi (KRS) mahasiswa serta mengunduh rekap nilai.
+          </p>
+        </div>
+        
+        <!-- 🟢 KANCING 2: TOMBOL LINK PROFIL DOSEN ELIT MENYATU INDAH DI SISI KANAN BANNER SPANDUK -->
+        <a href="/dosen/profil" style="padding: 10px 20px; background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.88rem; font-weight: bold; text-decoration: none; transition: all 0.15s;" onmouseover="this.style.backgroundColor='#e2e8f0'; this.style.color='#005d6c';" onmouseout="this.style.backgroundColor='#f1f5f9'; this.style.color='#475569';">🔍 Lihat Detail Profil</a>
       </div>
 
-      <!-- SAKLAR MENU HUB DOSEN WALI -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+      <!-- SAKLAR MENU HUB 2 KARTU UTAMA (KEMBALI SIMETRIS INDAH, PAS, DAN KEBEL JOMpLANG!) -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px;">
         
-        <!-- MENU CARD 1: PERSETUJUAN KRS MAHASISWA -->
-        <div style="background-color: #ffffff; padding: 28px; border-radius: 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 12px;">
+        <!-- CARD MENU 1: PERSETUJUAN KRS -->
+        <div style="background-color: #ffffff; padding: 28px; border-radius: 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);">
           <div style="font-size: 2rem;">🔒</div>
           <h3 style="margin: 0; color: #005d6c; font-weight: bold; font-size: 1.25rem;">Persetujuan KRS Mahasiswa</h3>
-          <p style="margin: 0; color: #64748b; font-size: 0.88rem; line-height: 1.5; flex-grow: 1;">
+          <p style="margin: 0 0 12px 0; color: #64748b; font-size: 0.88rem; line-height: 1.5; flex-grow: 1;">
             Sidak dan periksa daftar antrean pengisian KRS mahasiswa bimbingan Anda. Berikan verifikasi persetujuan secara real-time.
           </p>
-          <a href="/dosen/krs-approval" style="text-align: center; margin-top: 12px; padding: 12px; background-color: #005d6c; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">Periksa Antrean KRS ➔</a>
+          <a href="/dosen/krs-approval" style="text-align: center; padding: 12px; background-color: #005d6c; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">Periksa Antrean KRS ➔</a>
         </div>
 
-        <!-- MENU CARD 2: INPUT NILAI KHS -->
-        <div style="background-color: #ffffff; padding: 28px; border-radius: 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 12px;">
+        <!-- CARD MENU 2: INPUT NILAI KHS -->
+        <div style="background-color: #ffffff; padding: 28px; border-radius: 12px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);">
           <div style="font-size: 2rem;">✍️</div>
           <h3 style="margin: 0; color: #005d6c; font-weight: bold; font-size: 1.25rem;">Input Nilai Akhir (KHS)</h3>
-          <p style="margin: 0; color: #64748b; font-size: 0.88rem; line-height: 1.5; flex-grow: 1;">
+          <p style="margin: 0 0 12px 0; color: #64748b; font-size: 0.88rem; line-height: 1.5; flex-grow: 1;">
             Masukkan komponen nilai tugas, UTS, dan UAS mahasiswa per mata kuliah semester ganjil untuk konversi otomatis IPK server.
           </p>
-          <a href="/dosen/input-nilai" style="text-align: center; margin-top: 12px; padding: 12px; background-color: #005d6c; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">Mulai Input Nilai ➔</a>
+          <a href="/dosen/input-nilai" style="text-align: center; padding: 12px; background-color: #005d6c; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">Mulai Input Nilai ➔</a>
         </div>
 
       </div>

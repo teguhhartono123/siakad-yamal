@@ -1,0 +1,116 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - PROFIL BIO DATA DOSEN WALI (SERVER-SIDE SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + CLOUDFLARE D1 DOSEN ENGINE
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanNotifikasi = "";
+let dataProfil: any = null;
+
+// 🛡️ GATEKEEPER PROTECTION: Ambil session cookie dosen wali
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "dosen") {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding missing" }, { status: 500 });
+}
+
+try {
+  // 🔥 AUTO LOG INJECTION: Catat otomatis jejak langkah dosen di tabel audit log siber
+  const headers = Astro.request.headers;
+  const liveIpAddress = headers.get("cf-connecting-ip") || headers.get("x-forwarded-for") || "127.0.0.1";
+  await db.prepare(`
+    INSERT INTO riwayat_audit_siakad (nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip)
+    VALUES (?, ?, 'Sidak menu Profil Data Diri Dosen Wali via SSR', ?)
+  `).bind(sessionNama, sessionRole, liveIpAddress).run();
+
+  // 🔍 QUERY FORENSIK: Tarik data profil detail dosen dari rahim database D1
+  const dosenResult: any = await db.prepare(`
+    SELECT nomor_induk, nama_lengkap, peran, jabatan_fungsional, bidang_keilmuan, status_serdos 
+    FROM pengguna_siakad 
+    WHERE nomor_induk = ?
+    LIMIT 1
+  `).bind(sessionNim).first();
+
+  if (dosenResult) {
+    dataProfil = dosenResult;
+  }
+} catch (error: any) {
+  pesanNotifikasi = `Gagal memuat berkas profil siber dosen: ${error.message}`;
+}
+---
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Profil Data Dosen - SIAKAD STIT YA'MAL</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- TOP BAR PANEL NAVIGASI SULTAN -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;"><a href="/dosen/dashboard" style="color: #ffffff; text-decoration: none;">🏛️ SIAKAD DOSEN WALI</a> ➔ BIO DATA</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">👤 {dataProfil?.nama_lengkap}</div>
+    </header>
+
+    <main style="max-width: 700px; margin: 0 auto; padding: 40px 20px;">
+      
+      {pesanNotifikasi && (
+        <div style="padding: 16px; background-color: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px; color: #991b1b; font-weight: bold; margin-bottom: 20px;">
+          {pesanNotifikasi}
+        </div>
+      )}
+
+      <!-- HERO PROFILE CARD SULTAN -->
+      <div style="background-color: #ffffff; padding: 36px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        
+        <!-- HEADER AVATAR PROFILE -->
+        <div style="display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #f1f5f9; padding-bottom: 24px; margin-bottom: 24px;">
+          <div style="width: 80px; height: 80px; background-color: #7c3aed; color: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; border: 3px solid #cbd5e1;">
+            👨‍🏫
+          </div>
+          <div>
+            <h2 style="margin: 0; color: #005d6c; font-weight: 800; font-size: 1.6rem;">{dataProfil?.nama_lengkap}</h2>
+            <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.9rem; font-weight: bold;">NIDN / NOMOR INDUK DOSEN: <span style="color: #0f172a;">{dataProfil?.nomor_induk}</span></p>
+          </div>
+        </div>
+
+        <!-- TABEL DETAIL DATA KEPENDIDIKAN RESMI -->
+        <h3 style="margin: 0 0 16px 0; color: #005d6c; font-size: 1.1rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">📋 Portofolio Jabatan Akademik Dosen</h3>
+        
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem; text-align: left; margin-bottom: 30px;">
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 12px; color: #64748b; font-weight: 600; width: 220px;">Jabatan Fungsional</td>
+            <td style="padding: 14px 12px; font-weight: bold; color: #111827;">{dataProfil?.jabatan_fungsional}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 12px; color: #64748b; font-weight: 600;">Rumpun Bidang Keilmuan</td>
+            <td style="padding: 14px 12px; font-weight: bold; color: #005d6c;">{dataProfil?.bidang_keilmuan}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 12px; color: #64748b; font-weight: 600;">Status Sertifikasi</td>
+            <td style="padding: 14px 12px; font-weight: bold; color: #15803d;"><span style="background-color: #dcfce7; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; border: 1px solid #bbf7d0; font-weight: bold;">{dataProfil?.status_serdos}</span></td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 14px 12px; color: #64748b; font-weight: 600;">Ikatan Peran Sistem</td>
+            <td style="padding: 14px 12px; font-weight: bold; color: #0369a1; text-transform: uppercase;">CIVITAS {dataProfil?.peran} WALI</td>
+          </tr>
+        </table>
+
+        <!-- BUTTON LINK KEMBALI CONTROLLER -->
+        <div style="text-align: center; border-top: 1px solid #f1f5f9; padding-top: 24px;">
+          <a href="/dosen/dashboard" style="color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none; transition: color 0.15s;" onmouseover="this.style.color='#005d6c'" onmouseout="this.style.color='#64748b'">➔ Kembali ke Dashboard Dosen</a>
+        </div>
+
+      </div>
+    </main>
+  </body>
+</html>

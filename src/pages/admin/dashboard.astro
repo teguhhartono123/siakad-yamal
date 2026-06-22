@@ -1,7 +1,7 @@
 ---
 // =========================================================================
 // 🏛️ REPUBLIK PORTAL SIAKAD - PRIVAT DASHBOARD ADMIN BAAK (SERVER-SIDE SSR)
-// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + SEARCH & FILTER LOGS ENGINE D1
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + FORENSIC REPORT EXPORT ENGINE D1
 // =========================================================================
 
 import { env } from 'cloudflare:workers';
@@ -37,7 +37,7 @@ if (!sessionNim || sessionRole !== "admin") {
 const headers = Astro.request.headers;
 const liveIpAddress = headers.get("cf-connecting-ip") || headers.get("x-forwarded-for") || "127.0.0.1";
 
-// 🔍 SEARCH & FILTER CONTROLLER: Tangkap input kata kunci dari URL Query Parameter (GET method)
+// 🔍 SEARCH & FILTER CONTROLLER
 const queryCariUrl = Astro.url.searchParams.get("search")?.trim() || "";
 const queryPeranUrl = Astro.url.searchParams.get("role")?.trim() || "";
 
@@ -50,7 +50,7 @@ try {
   // 🔥 AUTO LOG INJECTION: Catat otomatis jejak langkah admin setiap kali membuka halaman dasbor
   await db.prepare(`
     INSERT INTO riwayat_audit_siakad (nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip)
-    VALUES (?, ?, 'Mengakses Konsol Central BAAK HUB via SSR', ?)
+    VALUES (?, ?, 'Mengunduh / Menyaring Laporan Dokumen Forensik Audit Log via SSR', ?)
   `).bind(sessionNama, sessionRole, liveIpAddress).run();
 
   // 1. FORENSIK HITUNG AGREGASI DATA UTAMA KAMPUS
@@ -100,7 +100,7 @@ try {
     });
   }
 
-  // 🛡️ DYNAMIC SEARCH ALGORTIHM ENGINE: Susun kueri SQL bersyarat secara elastis (Safe SQL Injection)
+  // 🛡️ DYNAMIC SEARCH ALGORITHM ENGINE
   let queryBaseSql = "SELECT id, nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip, jejak_waktu FROM riwayat_audit_siakad WHERE 1=1";
   let parameterQuery: any[] = [];
 
@@ -115,9 +115,8 @@ try {
     parameterQuery.push(queryPeranUrl);
   }
 
-  queryBaseSql += " ORDER BY id DESC LIMIT 5";
+  queryBaseSql += " ORDER BY id DESC LIMIT 20"; // Dilebarkan jadi 20 baris biar bahan export Excelnya melimpah
 
-  // Tarik data stream hasil filter langsung dari rahim database D1
   const auditResult = await db.prepare(queryBaseSql).bind(...parameterQuery).all();
   daftarAudit = auditResult.results || [];
 
@@ -130,6 +129,36 @@ try {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
     <title>Dashboard Admin BAAK - SIAKAD STIT YA'MAL</title>
+    
+    <!-- 📄 CSS PRINT OVERRIDE: Otomatis Menyembunyikan Sampah Kosmetik Saat Cetak PDF -->
+    <style is:global>
+      @media print {
+        header, form, .no-print, button, #btn-excel { 
+          display: none !important; 
+        }
+        body { 
+          background-color: #ffffff !important; 
+          color: #000000 !important; 
+          padding: 0 !important; 
+          margin: 0 !important;
+        }
+        main { 
+          padding: 0 !important; 
+          max-width: 100% !important; 
+        }
+        .container-audit {
+          border: none !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+        }
+        .print-header {
+          display: block !important;
+        }
+      }
+      .print-header { 
+        display: none; 
+      }
+    </style>
   </head>
   <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
     
@@ -140,7 +169,7 @@ try {
         <span style="font-size: 0.9rem; font-weight: 600; background-color: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 6px;">
           ⚙️ {sessionNama}
         </span>
-        <a href="/logout" style="color: #ffffff; font-size: 0.85rem; font-weight: bold; text-decoration: none; border: 1px solid #ffffff; padding: 6px 12px; border-radius: 6px; transition: all 0.15s;">Keluar</a>
+        <a href="/logout" style="color: #ffffff; font-size: 0.85rem; font-weight: bold; text-decoration: none; border: 1px solid #ffffff; padding: 6px 12px; border-radius: 6px;">Keluar</a>
       </div>
     </header>
 
@@ -214,28 +243,34 @@ try {
         </div>
 
       </div>
-      <!-- 🛡️ FORENSIK AUDIT LOGS DENGAN PANEL FITUR PENCARIAN REAL-TIME -->
-      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); margin-top: 30px;">
+      <!-- 🛡️ FORENSIK AUDIT LOGS DENGAN BOX TOMBOL MULTI-FORMAT EXPORT -->
+      <div class="container-audit" style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
         
+        <!-- 📄 KOP SURAT KEMENTERIAN RESMI (PRINT ONLY DUA BARIS) -->
+        <div class="print-header" style="text-align: center; border-bottom: 4px double #000000; padding-bottom: 12px; margin-bottom: 24px; font-family: 'Times New Roman', Times, serif;">
+          <h3 style="margin: 0; font-size: 1.1rem; font-weight: bold; color: #16a34a; text-transform: uppercase;">YAYASAN ASYAFFA GLOBAL CENDIKIA</h3>
+          <h2 style="margin: 2px 0; font-size: 1.4rem; font-weight: 900; color: #7c3aed; text-transform: uppercase;">STIT YA'MAL TANGERANG</h2>
+          <h4 style="margin: 0; font-size: 0.95rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: #000000;">DOKUMEN RESMI FORENSIK AUDIT LOG AKTIVITAS SISTEM</h4>
+        </div>
+
         <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f1f5f9; padding-bottom: 14px; margin-bottom: 24px;">
           <div>
             <h3 style="margin: 0; color: #005d6c; font-weight: 800; font-size: 1.25rem;">🛡️ Forensik Audit Log Aktivitas Sistem</h3>
             <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.85rem;">Jejak Kamar Digital: <b>Brankas Keamanan Enkripsi D1 Serverless Blackbox Logs</b></p>
           </div>
-          <span style="background-color: #dcfce7; color: #166534; font-size: 0.75rem; font-weight: bold; padding: 6px 12px; border-radius: 6px; border: 1px solid #bbf7d0;">📡 LIVE INTERCEPTOR ON</span>
+          
+          <!-- 🟢 BOX TOMBOL DUAL FORMAT EXPORT (NO-PRINT) -->
+          <div class="no-print" style="display: flex; gap: 10px;">
+            <button id="btn-excel" style="padding: 8px 16px; background-color: #16a34a; color: #ffffff; border: none; border-radius: 6px; font-size: 0.82rem; font-weight: bold; cursor: pointer;">🟢 Unduh data (.xls)</button>
+            <button onclick="window.print()" style="padding: 8px 16px; background-color: #475569; color: #ffffff; border: none; border-radius: 6px; font-size: 0.82rem; font-weight: bold; cursor: pointer;">📄 Cetak Laporan PDF</button>
+          </div>
         </div>
 
-        <!-- 🔍 BARIS BOX PANEL FILTER PENCARIAN SULTAN (GET INTERFACE) -->
+        <!-- 🔍 BARIS BOX PANEL FILTER PENCARIAN -->
         <form method="GET" style="margin-bottom: 24px; display: flex; flex-wrap: wrap; gap: 14px; background-color: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; align-items: center;">
           <div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1; min-width: 240px;">
             <label style="font-size: 0.75rem; color: #475569; font-weight: 700; text-transform: uppercase;">Cari Jejak Aktivitas / IP Address</label>
-            <input 
-              type="text" 
-              name="search" 
-              value={queryCariUrl} 
-              placeholder="Ketik alamat IP, nama aktor, atau jenis aksi..." 
-              style="padding: 10px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.88rem; color: #0f172a; outline: none;"
-            />
+            <input type="text" name="search" value={queryCariUrl} placeholder="Ketik alamat IP, nama aktor, atau jenis aksi..." style="padding: 10px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.88rem; color: #0f172a; outline: none;" />
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 4px; width: 160px;">
@@ -249,7 +284,7 @@ try {
           </div>
 
           <div style="display: flex; gap: 10px; margin-top: 18px;">
-            <button type="submit" style="padding: 11px 22px; background-color: #005d6c; color: #ffffff; border: none; border-radius: 6px; font-size: 0.88rem; font-weight: bold; cursor: pointer; transition: background-color 0.15s;">🔍 Saring Data</button>
+            <button type="submit" style="padding: 11px 22px; background-color: #005d6c; color: #ffffff; border: none; border-radius: 6px; font-size: 0.88rem; font-weight: bold; cursor: pointer;">🔍 Saring Data</button>
             { (queryCariUrl || queryPeranUrl) && (
               <a href="/admin/dashboard" style="padding: 10px 16px; background-color: #e2e8f0; color: #475569; text-decoration: none; border-radius: 6px; font-size: 0.88rem; font-weight: bold; text-align: center;">Reset</a>
             )}
@@ -294,5 +329,31 @@ try {
       </div>
 
     </main>
+
+    <!-- 🟢 KAWAT SAKRAL SKRIP BLOB VANILLA JS UNTUK GENERATOR DOWNLOAd EXCEL REAL-TIME -->
+    <script define:vars={{ daftarAudit }}>
+      document.getElementById('btn-excel')?.addEventListener('click', () => {
+        if (!daftarAudit || daftarAudit.length === 0) {
+          alert("Tangki data kosong, tidak ada berkas log yang bisa di-export, Doc!");
+          return;
+        }
+
+        let isiKontenExcel = "LOG ID\tAKTOR OPERASI\tROLE\tINTERCEPT IP\tBENTUK AKSI AKTIVITAS DIGITAL\n";
+        
+        daftarAudit.forEach((log) => {
+          isiKontenExcel += `#${log.id}\t${log.nama_pengguna}\t${log.peran_pengguna.toUpperCase()}\t${log.alamat_ip}\t${log.aksi_aktivitas}\n`;
+        });
+
+        const blobBiner = new Blob([isiKontenExcel], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const linkUnduh = document.createElement("a");
+        const urlObjek = URL.createObjectURL(blobBiner);
+        
+        linkUnduh.href = urlObjek;
+        linkUnduh.setAttribute("download", `Laporan_Forensik_Audit_SIAKAD_` + Date.now() + `.xls`);
+        document.body.appendChild(linkUnduh);
+        linkUnduh.click();
+        document.body.removeChild(linkUnduh);
+      });
+    </script>
   </body>
 </html>
