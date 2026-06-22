@@ -1,7 +1,7 @@
 ---
 // =========================================================================
 // 🏛️ REPUBLIK PORTAL SIAKAD - PRIVAT DASHBOARD ADMIN BAAK (SERVER-SIDE SSR)
-// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + FORENSIC REPORT EXPORT ENGINE D1
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + CLEAN INTEGRATED METRIC UX HOVER
 // =========================================================================
 
 import { env } from 'cloudflare:workers';
@@ -33,11 +33,11 @@ if (!sessionNim || sessionRole !== "admin") {
   return Astro.redirect('/login');
 }
 
-// 📡 CYBER FORENSICS: Ambil alamat IP asli
+// 📡 CYBER FORENSICS: Ambil alamat IP asli pengunjung dari Cloudflare Edge Runtime
 const headers = Astro.request.headers;
 const liveIpAddress = headers.get("cf-connecting-ip") || headers.get("x-forwarded-for") || "127.0.0.1";
 
-// 🔍 SEARCH & FILTER CONTROLLER
+// 🔍 SEARCH & FILTER CONTROLLER URL PARAMETER
 const queryCariUrl = Astro.url.searchParams.get("search")?.trim() || "";
 const queryPeranUrl = Astro.url.searchParams.get("role")?.trim() || "";
 
@@ -47,13 +47,13 @@ if (!db) {
 }
 
 try {
-  // 🔥 AUTO LOG INJECTION: Catat otomatis jejak langkah admin setiap kali membuka halaman dasbor
+  // 🔥 AUTO LOG INJECTION: Catat jejak langkah audit log siber
   await db.prepare(`
     INSERT INTO riwayat_audit_siakad (nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip)
-    VALUES (?, ?, 'Mengunduh / Menyaring Laporan Dokumen Forensik Audit Log via SSR', ?)
+    VALUES (?, ?, 'Membuka Konsol Utama Monitoring Administrasi BAAK Hub via SSR', ?)
   `).bind(sessionNama, sessionRole, liveIpAddress).run();
 
-  // 1. FORENSIK HITUNG AGREGASI DATA UTAMA KAMPUS
+  // 1. FORENSIK HITUNG AGREGASI DATA UTAMA KAMPUS D1
   const countMhs = await db.prepare("SELECT COUNT(*) as total FROM pengguna_siakad WHERE peran = 'mahasiswa'").first();
   const countDsn = await db.prepare("SELECT COUNT(*) as total FROM pengguna_siakad WHERE peran = 'dosen'").first();
   const countMatkul = await db.prepare("SELECT COUNT(*) as total FROM master_matakuliah").first();
@@ -72,35 +72,18 @@ try {
   const totalTunggakan = (queryTunggakan?.total as number) || 0;
   const totalMhsFinansial = totalLunas + totalTunggakan;
 
-  keuanganData.count = totalLunas;
-  keuanganData.count = totalTunggakan;
+  keuanganData[0].count = totalLunas;
+  keuanganData[1].count = totalTunggakan;
 
   if (totalMhsFinansial > 0) {
-    keuanganData.percentage = Math.round((totalLunas / totalMhsFinansial) * 100);
-    keuanganData.percentage = Math.round((totalTunggakan / totalMhsFinansial) * 100);
+    keuanganData[0].percentage = Math.round((totalLunas / totalMhsFinansial) * 100);
+    keuanganData[1].percentage = Math.round((totalTunggakan / totalMhsFinansial) * 100);
   } else {
-    keuanganData.count = 1;
-    keuanganData.percentage = 100;
+    keuanganData[0].count = 1;
+    keuanganData[0].percentage = 100;
   }
 
-  // 3. ANALISIS GRAFIK HISTOGRAM IPK MAHASISWA
-  const krsApproved = await db.prepare("SELECT COUNT(*) as total FROM krs_induk WHERE status_krs = 'approved'").first();
-  const totalApproved = (krsApproved?.total as number) || 0;
-
-  if (totalApproved === 0) {
-    histogramData.count = 1; 
-    histogramData.percentage = 100;
-  } else {
-    let totalMhsDinilai = 0;
-    histogramData.forEach(item => { totalMhsDinilai += item.count; });
-    histogramData.forEach(item => {
-      if (totalMhsDinilai > 0) {
-        item.percentage = Math.round((item.count / totalMhsDinilai) * 100);
-      }
-    });
-  }
-
-  // 🛡️ DYNAMIC SEARCH ALGORITHM ENGINE
+  // 3. DYNAMIC SEARCH ALGORITHM ENGINE KEBEL SQL INJECTION
   let queryBaseSql = "SELECT id, nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip, jejak_waktu FROM riwayat_audit_siakad WHERE 1=1";
   let parameterQuery: any[] = [];
 
@@ -115,7 +98,7 @@ try {
     parameterQuery.push(queryPeranUrl);
   }
 
-  queryBaseSql += " ORDER BY id DESC LIMIT 20"; // Dilebarkan jadi 20 baris biar bahan export Excelnya melimpah
+  queryBaseSql += " ORDER BY id DESC LIMIT 20";
 
   const auditResult = await db.prepare(queryBaseSql).bind(...parameterQuery).all();
   daftarAudit = auditResult.results || [];
@@ -162,14 +145,14 @@ try {
   </head>
   <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
     
-    <!-- TOP BAR PANEL NAVIGASI SULTAN -->
+    <!-- TOP BAR PANEL NAVIGASI STERIL (BERSIH DARI PUCUK NANGKRING GAIB!) -->
     <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
       <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;">🏛️ Central BAAK Hub</div>
       <div style="display: flex; align-items: center; gap: 16px;">
         <span style="font-size: 0.9rem; font-weight: 600; background-color: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 6px;">
           ⚙️ {sessionNama}
         </span>
-        <a href="/logout" style="color: #ffffff; font-size: 0.85rem; font-weight: bold; text-decoration: none; border: 1px solid #ffffff; padding: 6px 12px; border-radius: 6px;">Keluar</a>
+        <a href="/logout" style="color: #ffffff; font-size: 0.85rem; font-weight: bold; text-decoration: none; border: 1px solid #ffffff; padding: 6px 12px; border-radius: 6px; transition: all 0.15s;" onmouseover="this.style.backgroundColor='#ffffff'; this.style.color='#005d6c'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='#ffffff'">Keluar</a>
       </div>
     </header>
 
@@ -185,20 +168,30 @@ try {
         </p>
       </div>
 
-      <!-- GRID MONITORING KAMPUS -->
+      <!-- GRID MONITORING KAMPUS (TIGA PANEL METRIK ELEGAN - PANEL 3 OTOMATIS JADI TOMBOL INTERAKTIF) -->
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb;">
-          <div style="font-size: 0.85rem; color: #4b5563; font-weight: bold; text-transform: uppercase;">🎓 Total Mahasiswa Aktif</div>
+        
+        <!-- PANEL 1: DATA MAHASISWA (STATIS ELEGAN) -->
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+          <div style="font-size: 0.85rem; color: #4b5563; font-weight: bold; text-transform: uppercase; display: flex; align-items: center; gap: 8px;">🎓 Total Mahasiswa Aktif</div>
           <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalMhs} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Jiwa</span></div>
         </div>
-        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb;">
-          <div style="font-size: 0.85rem; color: #4b5563; font-weight: bold; text-transform: uppercase;">👨‍🏫 Total Dosen Terdaftar</div>
+        
+        <!-- PANEL 2: DATA DOSEN (STATIS ELEGAN) -->
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+          <div style="font-size: 0.85rem; color: #4b5563; font-weight: bold; text-transform: uppercase; display: flex; align-items: center; gap: 8px;">👨‍🏫 Total Dosen Terdaftar</div>
           <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalDsn} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Dosen</span></div>
         </div>
-        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb;">
-          <div style="font-size: 0.85rem; color: #4b5563; font-weight: bold; text-transform: uppercase;">📚 Total Mata Kuliah Dibuka</div>
+        
+        <!-- 🟢 PANEL 3 REVOLUSI UI/UX: LANGSUNG BERMUTASI JADI TOMBOL UTAMA MENU KELOLA MASTER KURIKULUM (ANTI-JOMPLANG & BERKELAS!) -->
+        <a href="/admin/matakuliah" style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); text-decoration: none; display: block; transition: all 0.15s; box-sizing: border-box;" onmouseover="this.style.borderColor='#005d6c'; this.style.backgroundColor='#f0fbfd'; this.style.transform='translateY(-2px)';" onmouseout="this.style.borderColor='#e5e7eb'; this.style.backgroundColor='#ffffff'; this.style.transform='translateY(0)';">
+          <div style="font-size: 0.85rem; color: #005d6c; font-weight: bold; text-transform: uppercase; display: flex; align-items: center; justify-content: space-between;">
+            <span>📚 Total Mata Kuliah Dibuka</span>
+            <span style="font-size: 0.75rem; background-color: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-weight: bold;">Kelola Kurikulum ➔</span>
+          </div>
           <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalMatkul} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Matkul</span></div>
-        </div>
+        </a>
+
       </div>
 
       <!-- DUAL HISTOGRAM WORKSPACE -->

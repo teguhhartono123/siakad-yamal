@@ -1,0 +1,211 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - INPUT & EDIT MASTER MATA KULIAH (SERVER SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + REAL-TIME D1 CURRICULUM MUTATOR
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanSukses = "";
+let pesanEror = "";
+let daftarMatkul: any[] = [];
+let matkulTerpilih: any = null; // Penampung data saat mode edit diaktifkan
+
+// 🛡️ GATEKEEPER PROTECTION: Kunci hak akses ketat hanya untuk peran Admin BAAK
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "admin") {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding tidak ditemukan." }, { status: 500 });
+}
+
+// 🔍 DETEKSI URL PARAMETER: Ambil ID jika admin mengklik tombol edit data
+const editIdUrl = Astro.url.searchParams.get("edit_id");
+
+// 📡 PROSES 1: MUTASI DATA VIA METODE POST (SIMPAN BARU ATAU UPDATE DATA LAMA)
+if (Astro.request.method === "POST") {
+  try {
+    const formData = await Astro.request.formData();
+    const aksiForm = formData.get("aksi_form");
+    const kode = formData.get("kode_matkul")?.trim();
+    const nama = formData.get("nama_matkul")?.trim();
+    const sks = parseInt(formData.get("sks") as string) || 2;
+    const semester = parseInt(formData.get("semester_target") as string) || 1;
+
+    if (aksiForm === "simpan_baru") {
+      // Tembakkan kueri INSERT baru ke dalam master_matakuliah
+      await db.prepare("INSERT INTO master_matakuliah (kode_matkul, nama_matkul, sks, semester_target) VALUES (?, ?, ?, ?)")
+        .bind(kode, nama, sks, semester).run();
+      
+      pesanSukses = `✓ Berhasil menambahkan mata kuliah baru: ${nama} (${kode}) ke dalam kurikulum.`;
+    }
+
+    if (aksiForm === "update_data") {
+      const targetId = formData.get("target_id");
+      // Tembakkan kueri UPDATE data lama
+      await db.prepare("UPDATE master_matakuliah SET kode_matkul = ?, nama_matkul = ?, sks = ?, semester_target = ? WHERE id = ?")
+        .bind(kode, nama, sks, semester, targetId).run();
+      
+      pesanSukses = `✓ Perubahan data mata kuliah ${nama} berhasil dikunci masuk database D1!`;
+    }
+
+    // 🛡️ CYBER FORENSICS LOG INJECTION AUTO-TRACKER
+    const headers = Astro.request.headers;
+    const liveIpAddress = headers.get("cf-connecting-ip") || headers.get("x-forwarded-for") || "127.0.0.1";
+    await db.prepare(`
+      INSERT INTO riwayat_audit_siakad (nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip)
+      VALUES (?, ?, ?, ?)
+    `).bind(sessionNama, sessionRole, `Melakukan manipulasi data kurikulum master mata kuliah: ${nama} (${kode})`, liveIpAddress).run();
+
+  } catch (error: any) {
+    pesanEror = `Gagal memproses manipulasi data kurikulum: ${error.message}`;
+  }
+}
+
+try {
+  // 🔍 PROSES 2: MODE SINKRONISASI EDIT DATA (Jika parameter edit_id aktif di URL)
+  if (editIdUrl) {
+    const cariMatkul = await db.prepare("SELECT id, kode_matkul, nama_matkul, sks, semester_target FROM master_matakuliah WHERE id = ? LIMIT 1").bind(editIdUrl).first();
+    if (cariMatkul) {
+      matkulTerpilih = cariMatkul;
+    }
+  }
+
+  // 🔍 PROSES 3: STREAM DATA UTAMA - Tarik semua mata kuliah untuk di-render ke datatable bawah
+  const matkulQuery = await db.prepare("SELECT id, kode_matkul, nama_matkul, sks, semester_target FROM master_matakuliah ORDER BY semester_target ASC, kode_matkul ASC").all();
+  daftarMatkul = matkulQuery.results || [];
+} catch (error: any) {
+  pesanEror = `Gagal sinkronisasi data kurikulum D1: ${error.message}`;
+}
+---
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Manajemen Master Mata Kuliah - SIAKAD STIT YA'MAL</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- TOP BAR PANEL NAVIGASI SULTAN -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;"><a href="/admin/dashboard" style="color: #ffffff; text-decoration: none;">🏛️ Central BAAK Hub</a> ➔ MASTER KURIKULUM</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">⚙️ {sessionNama}</div>
+    </header>
+
+    <main style="max-width: 1100px; margin: 0 auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 30px;">
+      
+      {pesanSukses && <div style="padding: 14px; background-color: #dcfce7; border: 1px solid #bbf7d0; color: #15803d; font-weight: bold; border-radius: 8px; font-size: 0.88rem;">{pesanSukses}</div>}
+      {pesanEror && <div style="padding: 14px; background-color: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; font-weight: bold; border-radius: 8px; font-size: 0.88rem;">{pesanEror}</div>}
+
+      <!-- FORMULIR INPUT DINAMIS (BISA MEDETEKSI SEARA OTOMATIS MODE TAMBAH VS EDIT) -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 24px;">
+          <h2 style="margin: 0; color: #005d6c; font-weight: 800; font-size: 1.4rem;">
+            {matkulTerpilih ? "📝 Perbarui Data Mata Kuliah Kurikulum" : "➕ Daftarkan Master Mata Kuliah Baru"}
+          </h2>
+          <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.85rem;">
+            {matkulTerpilih ? "Silakan ubah rincian bobot SKS atau kode kelas untuk meng-update pangkalan data D1." : "Tambahkan menu program studi baru agar otomatis memancar di pilihan KRS mahasiswa."}
+          </p>
+        </div>
+
+        <form method="POST" style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- HIDDEN ACTION VALUE CONTROLLER -->
+          <input type="hidden" name="aksi_form" value={matkulTerpilih ? "update_data" : "simpan_baru"} />
+          {matkulTerpilih && <input type="hidden" name="target_id" value={matkulTerpilih.id} />}
+
+          <!-- GRID BARIS 1: KODE & NAMA MATKUL -->
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px; flex-wrap: wrap;">
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Kode Mata Kuliah</label>
+              <input type="text" name="kode_matkul" value={matkulTerpilih?.kode_matkul || ""} placeholder="Contoh: PAI-201" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; color: #0f172a;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Nama Lengkap Mata Kuliah</label>
+              <input type="text" name="nama_matkul" value={matkulTerpilih?.nama_matkul || ""} placeholder="Contoh: Metodologi Penelitian Pendidikan" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; color: #0f172a;" />
+            </div>
+          </div>
+
+          <!-- GRID BARIS 2: BOBOT SKS & SEMESTER TARGET -->
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Bobot SKS Kelas</label>
+              <select name="sks" style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; background-color: #ffffff; color: #0f172a; cursor: pointer;">
+                <option value="1" selected={matkulTerpilih?.sks === 1}>1 SKS (Praktikum/KKL)</option>
+                <option value="2" selected={!matkulTerpilih || matkulTerpilih?.sks === 2}>2 SKS (Standar Kuliah)</option>
+                <option value="3" selected={matkulTerpilih?.sks === 3}>3 SKS (Bobot Tinggi/Inti)</option>
+                <option value="4" selected={matkulTerpilih?.sks === 4}>4 SKS (Skripsi/Tesis)</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Target Penempatan Semester</label>
+              <select name="semester_target" style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; background-color: #ffffff; color: #0f172a; cursor: pointer;">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                  <option value={sem} selected={matkulTerpilih?.semester_target === sem}>Semester {sem}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <!-- BUTTON BAR ACTION -->
+          <div style="display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 10px; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+            {matkulTerpilih && <a href="/admin/matakuliah" style="padding: 12px 20px; background-color: #e2e8f0; color: #475569; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem;">✕ Batalkan Edit</a>}
+            <button type="submit" style="padding: 12px 28px; background-color: #005d6c; color: #ffffff; border: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; cursor: pointer; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">
+              {matkulTerpilih ? "💾 Kunci Perubahan Data Matkul ➔" : "🚀 Daftarkan Masuk Kurikulum D1 ➔"}
+            </button>
+          </div>
+        </form>
+      </div>
+      <!-- DATATABLE VIEW: DAFTAR SELURUH MATA KULIAH AKTIF DI RAHIM DATABASE D1 -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <h3 style="margin: 0 0 20px 0; color: #005d6c; font-weight: 800; font-size: 1.2rem;">📋 Inventaris Master Mata Kuliah Kurikulum</h3>
+        
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left;">
+            <thead>
+              <tr style="border-bottom: 2px solid #e5e7eb; color: #005d6c; font-weight: bold; background-color: #f8fafc;">
+                <th style="padding: 14px 12px; width: 120px;">KODE MATKUL</th>
+                <th style="padding: 14px 12px;">NAMA LENGKAP MATA KULIAH</th>
+                <th style="padding: 14px 12px; text-align: center; width: 80px;">BOBOT</th>
+                <th style="padding: 14px 12px; text-align: center; width: 140px;">SEMESTER</th>
+                <th style="padding: 14px 12px; text-align: center; width: 100px;">AKSI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {daftarMatkul.length === 0 ? (
+                <tr>
+                  <td colspan="5" style="padding: 24px; text-align: center; color: #64748b; font-style: italic;">
+                    Belum ada mata kuliah yang terdaftar di dalam kurikulum, Doc.
+                  </td>
+                </tr>
+              ) : (
+                daftarMatkul.map((matkul) => (
+                  <tr style={`border-bottom: 1px solid #f1f5f9; background-color: ${matkulTerpilih?.id === matkul.id ? '#fef9c3' : 'transparent'};`}>
+                    <td style="padding: 14px 12px; font-weight: bold; color: #475569;">{matkul.kode_matkul}</td>
+                    <td style="padding: 14px 12px; font-weight: 600; color: #111827;">{matkul.nama_matkul}</td>
+                    <td style="padding: 14px 12px; text-align: center; font-weight: bold; color: #005d6c;">{matkul.sks} SKS</td>
+                    <td style="padding: 14px 12px; text-align: center; font-weight: 600; color: #64748b;">Semester {matkul.semester_target}</td>
+                    <td style="padding: 14px 12px; text-align: center;">
+                      <!-- 🟢 TRIGGER KLIK EDIT: Melempar parameter ?edit_id= ke URL via SSR -->
+                      <a href={`/admin/matakuliah?edit_id=${matkul.id}`} style="display: inline-block; padding: 6px 12px; background-color: #005d6c; color: #ffffff; text-decoration: none; border-radius: 4px; font-size: 0.8rem; font-weight: bold; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">Edit Data</a>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top: 32px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+          <a href="/admin/dashboard" style="color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none;">➔ Kembali ke BAAK HUB Dashboard</a>
+        </div>
+      </div>
+
+    </main>
+  </body>
+</html>
