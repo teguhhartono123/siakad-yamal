@@ -1,7 +1,7 @@
 ---
 // =========================================================================
 // 🏛️ REPUBLIK PORTAL SIAKAD - PRIVAT DASHBOARD ADMIN BAAK (SERVER-SIDE SSR)
-// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + CLEAN INTEGRATED METRIC UX HOVER
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + PREMIUM CARD GLOW METRIC RESHAPE
 // =========================================================================
 
 import { env } from 'cloudflare:workers';
@@ -33,7 +33,7 @@ if (!sessionNim || sessionRole !== "admin") {
   return Astro.redirect('/login');
 }
 
-// 📡 CYBER FORENSICS: Ambil alamat IP asli pengunjung dari Cloudflare Edge Runtime
+// 📡 CYBER FORENSICS: Ambil alamat IP asli pengguna dari Cloudflare Runtime
 const headers = Astro.request.headers;
 const liveIpAddress = headers.get("cf-connecting-ip") || headers.get("x-forwarded-for") || "127.0.0.1";
 
@@ -43,11 +43,11 @@ const queryPeranUrl = Astro.url.searchParams.get("role")?.trim() || "";
 
 const db = env.database_siakad;
 if (!db) {
-  return Astro.json({ error: "Database binding missing" }, { status: 500 });
+  return Astro.json({ error: "Database binding tidak ditemukan." }, { status: 500 });
 }
 
 try {
-  // 🔥 AUTO LOG INJECTION: Catat jejak langkah audit log siber
+  // 🔥 AUTO LOG INJECTION: Catat otomatis jejak langkah admin di tabel audit log siber D1
   await db.prepare(`
     INSERT INTO riwayat_audit_siakad (nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip)
     VALUES (?, ?, 'Membuka Konsol Utama Monitoring Administrasi BAAK Hub via SSR', ?)
@@ -64,7 +64,7 @@ try {
     totalMatkul: (countMatkul?.total as number) || 0
   };
 
-  // 2. REAL-TIME SQL QUERY: HITUNG DATA STATUS SPP DARI TABEL krs_induk
+  // 2. REAL-TIME SQL QUERY: HITUNG DATA STATUS SPP
   const queryLunas: any = await db.prepare("SELECT COUNT(*) as total FROM krs_induk WHERE status_spp = 'lunas'").first();
   const queryTunggakan: any = await db.prepare("SELECT COUNT(*) as total FROM krs_induk WHERE status_spp = 'tunggakan'").first();
   
@@ -72,15 +72,11 @@ try {
   const totalTunggakan = (queryTunggakan?.total as number) || 0;
   const totalMhsFinansial = totalLunas + totalTunggakan;
 
-  keuanganData[0].count = totalLunas;
-  keuanganData[1].count = totalTunggakan;
-
   if (totalMhsFinansial > 0) {
+    keuanganData[0].count = totalLunas;
     keuanganData[0].percentage = Math.round((totalLunas / totalMhsFinansial) * 100);
+    keuanganData[1].count = totalTunggakan;
     keuanganData[1].percentage = Math.round((totalTunggakan / totalMhsFinansial) * 100);
-  } else {
-    keuanganData[0].count = 1;
-    keuanganData[0].percentage = 100;
   }
 
   // 3. DYNAMIC SEARCH ALGORITHM ENGINE KEBEL SQL INJECTION
@@ -113,7 +109,7 @@ try {
     <meta name="viewport" content="width=device-width" />
     <title>Dashboard Admin BAAK - SIAKAD STIT YA'MAL</title>
     
-    <!-- 📄 CSS PRINT OVERRIDE: Otomatis Menyembunyikan Sampah Kosmetik Saat Cetak PDF -->
+    <!-- 📄 CSS PRINT OVERRIDE: Otomatis Menyembunyikan Sampah Kosmetik Saat Cetak Kertas PDF -->
     <style is:global>
       @media print {
         header, form, .no-print, button, #btn-excel { 
@@ -147,7 +143,7 @@ try {
     
     <!-- TOP BAR PANEL NAVIGASI STERIL (BERSIH DARI PUCUK NANGKRING GAIB!) -->
     <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-      <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;">🏛️ Central BAAK Hub</div>
+      <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;">🏛️ SIAKAD CENTRAL BAAK HUB</div>
       <div style="display: flex; align-items: center; gap: 16px;">
         <span style="font-size: 0.9rem; font-weight: 600; background-color: rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 6px;">
           ⚙️ {sessionNama}
@@ -157,8 +153,7 @@ try {
     </header>
 
     <main style="max-width: 1100px; margin: 0 auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 30px;">
-      
-      <!-- HERO BANNER ADMIN -->
+      <!-- HERO BANNER ADMIN PUSAT BAAK HUB -->
       <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
         <h2 style="margin: 0; font-size: 1.8rem; color: #005d6c; font-weight: 800;">
           Pusat Kontrol Akademik & Finansial (BAAK HUB) ⚙️
@@ -168,32 +163,47 @@ try {
         </p>
       </div>
 
-      <!-- GRID MONITORING KAMPUS (TIGA PANEL METRIK ELEGAN - PANEL 3 OTOMATIS JADI TOMBOL INTERAKTIF) -->
+      <!-- 🏛️ FIX UI/UX SULTAN: TIGA PANEL KARTU METRIK GRID ELEGAN, SIMETRIS & 1000% TER-EMBEDDED PIPELINE LINK NAVIGASI -->
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
         
-        <!-- PANEL 1: DATA MAHASISWA (STATIS ELEGAN) -->
-        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
-          <div style="font-size: 0.85rem; color: #4b5563; font-weight: bold; text-transform: uppercase; display: flex; align-items: center; gap: 8px;">🎓 Total Mahasiswa Aktif</div>
-          <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalMhs} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Jiwa</span></div>
-        </div>
-        
-        <!-- PANEL 2: DATA DOSEN (STATIS ELEGAN) -->
-        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
-          <div style="font-size: 0.85rem; color: #4b5563; font-weight: bold; text-transform: uppercase; display: flex; align-items: center; gap: 8px;">👨‍🏫 Total Dosen Terdaftar</div>
-          <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalDsn} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Dosen</span></div>
-        </div>
-        
-        <!-- 🟢 PANEL 3 REVOLUSI UI/UX: LANGSUNG BERMUTASI JADI TOMBOL UTAMA MENU KELOLA MASTER KURIKULUM (ANTI-JOMPLANG & BERKELAS!) -->
-        <a href="/admin/matakuliah" style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); text-decoration: none; display: block; transition: all 0.15s; box-sizing: border-box;" onmouseover="this.style.borderColor='#005d6c'; this.style.backgroundColor='#f0fbfd'; this.style.transform='translateY(-2px)';" onmouseout="this.style.borderColor='#e5e7eb'; this.style.backgroundColor='#ffffff'; this.style.transform='translateY(0)';">
-          <div style="font-size: 0.85rem; color: #005d6c; font-weight: bold; text-transform: uppercase; display: flex; align-items: center; justify-content: space-between;">
-            <span>📚 Total Mata Kuliah Dibuka</span>
-            <span style="font-size: 0.75rem; background-color: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-weight: bold;">Kelola Kurikulum ➔</span>
+        <!-- 🟢 FIX KARTU 1 INTERAKTIF: PEMBERSIHAN TOTAL TEKS GRAD YANG TABRAKAN -->
+        <a href="/admin/mahasiswa" style="background-color: #ffffff; padding: 24px; border-radius: 16px; border: 1px solid #e5e7eb; border-left: 6px solid #0284c7; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between; text-decoration: none; box-sizing: border-box; transition: all 0.2s ease-in-out;" onmouseover="this.style.borderColor='#0284c7'; this.style.backgroundColor='#f0f9ff'; this.style.transform='translateY(-3px)';" onmouseout="this.style.borderColor='#e5e7eb'; this.style.backgroundColor='#ffffff'; this.style.transform='translateY(0)';">
+          <div>
+            <div style="font-size: 0.82rem; color: #4b5563; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center; gap: 6px;">
+              <span>🎓 Total Mahasiswa Aktif</span> 
+              <span style="font-size: 0.7rem; background-color: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: bold;">Kelola PMB ➔</span>
+            </div>
+            <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalMhs} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Jiwa</span></div>
           </div>
-          <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalMatkul} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Matkul</span></div>
+          <!-- 🟢 PASTIKAN KODENYA BERSIH SEPERTI INI TANPA ADA EMBEL-EMBEL TEKS "Grad" DI DALAMNYA -->
+            <div style="font-size: 2.2rem; background-color: #f0f9ff; padding: 12px; border-radius: 12px; border: 1px solid #e0f2fe; display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; box-sizing: border-box;">🎓</div>
+        </a>
+
+                <!-- 👥 KARTU INTEGRASI MUTLAK: DATA DOSEN SEKALIGUS MEMANGKU DUA TOMBOL KLIK AKSES MANDIRI (ERgONOMIS!) -->
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 16px; border: 1px solid #e5e7eb; border-left: 6px solid #7c3aed; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between; box-sizing: border-box;">
+          <div>
+            <div style="font-size: 0.82rem; color: #4b5563; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 2px;">
+              <span>👨‍🏫 Total Dosen</span>
+              <!-- 👤 TOMBOL shortcut A: MENU INPUT DATA DOSEN BARU -->
+              <a href="/admin/dosen" style="font-size: 0.7rem; background-color: #f5f3ff; color: #6d28d9; padding: 2px 6px; border-radius: 4px; font-weight: bold; text-decoration: none; border: 1px solid #ddd6fe; transition: all 0.1s;" onmouseover="this.style.backgroundColor='#ede9fe';" onmouseout="this.style.backgroundColor='#f5f3ff';">Kelola SDM 👤</a>
+              <!-- 🎯 TOMBOL shortcut B: MENU OTOMATISASI PLOTING MATA KULIAH -->
+              <a href="/admin/ploting-matkul" style="font-size: 0.7rem; background-color: #f5f3ff; color: #7c3aed; padding: 2px 6px; border-radius: 4px; font-weight: bold; text-decoration: none; border: 1px solid #ddd6fe; transition: all 0.1s;" onmouseover="this.style.backgroundColor='#ede9fe';" onmouseout="this.style.backgroundColor='#f5f3ff';">Ploting SKS 🎯</a>
+            </div>
+            <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalDsn} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Dosen</span></div>
+          </div>
+          <div style="font-size: 2.2rem; background-color: #f5f3ff; padding: 12px; border-radius: 12px; border: 1px solid #ede9fe; display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; box-sizing: border-box;">👨‍🏫</div>
+        </div>
+ 
+        <!-- 🟢 KARTU 3 INTERAKTIF: FULL BUTTON NAVIGASI KELOLA MASTER MATA KULIAH (HIJAU TEAL SULTAN) -->
+        <a href="/admin/matakuliah" style="background-color: #005d6c; padding: 24px; border-radius: 16px; border: 1px solid #004d5a; box-shadow: 0 10px 15px -3px rgba(0, 93, 108, 0.2); text-decoration: none; display: flex; align-items: center; justify-content: space-between; box-sizing: border-box; transition: all 0.2s ease-in-out;" onmouseover="this.style.backgroundColor='#0b6170'; this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 20px -3px rgba(0, 93, 108, 0.3)';" onmouseout="this.style.backgroundColor='#005d6c'; this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 93, 108, 0.2)';">
+          <div>
+            <div style="font-size: 0.82rem; color: #ccfbf1; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">📚 Kurikulum Academic <span style="font-size: 0.75rem; background-color: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; color: #ffffff;">Buka Kelola ➔</span></div>
+            <div style="font-size: 2.2rem; font-weight: 800; color: #ffffff; margin-top: 8px;">{statistik.totalMatkul} <span style="font-size: 1rem; font-weight: 400; color: #ccfbf1;">Matkul</span></div>
+          </div>
+          <div style="font-size: 2.2rem; background-color: rgba(255,255,255,0.1); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; box-sizing: border-box;">📖</div>
         </a>
 
       </div>
-
       <!-- DUAL HISTOGRAM WORKSPACE -->
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 30px;">
         
@@ -237,7 +247,7 @@ try {
 
       </div>
       <!-- 🛡️ FORENSIK AUDIT LOGS DENGAN BOX TOMBOL MULTI-FORMAT EXPORT -->
-      <div class="container-audit" style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+      <div class="container-audit" style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); margin-top: 10px;">
         
         <!-- 📄 KOP SURAT KEMENTERIAN RESMI (PRINT ONLY DUA BARIS) -->
         <div class="print-header" style="text-align: center; border-bottom: 4px double #000000; padding-bottom: 12px; margin-bottom: 24px; font-family: 'Times New Roman', Times, serif;">

@@ -1,0 +1,207 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - MANAJEMEN DATA MASTER DOSEN BAAK (SERVER SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + DYNAMIC EXTENDED SERDOS ENGINE
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanSukses = "";
+let pesanEror = "";
+let daftarDosen: any[] = [];
+
+// 🛡️ GATEKEEPER PROTECTION: Kunci hak akses ketat hanya untuk Admin BAAK
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "admin") {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding tidak ditemukan." }, { status: 500 });
+}
+
+// 📡 PROSES MUTASI METODE POST: Daftarkan Dosen Baru ke Rahim Database D1
+if (Astro.request.method === "POST") {
+  try {
+    const formData = await Astro.request.formData();
+    const nidn = formData.get("nidn_baru")?.trim();
+    const nama = formData.get("nama_lengkap")?.trim();
+    const wa = formData.get("nomor_wa")?.trim();
+    const jabatan = formData.get("jabatan_fungsional")?.trim() || "Tenaga Pengajar";
+    const bidang = formData.get("bidang_keilmuan")?.trim() || "Pendidikan Agama Islam (PAI)";
+    const serdos = formData.get("status_serdos")?.trim() || "Belum Sertifikasi"; 
+    const sandi = formData.get("kata_sandi")?.trim() || "sandi_dosen_456";
+
+    // Tembakkan kueri INSERT membawa parameter data Serdos panjang pilihan dari form
+    await db.prepare(`
+      INSERT INTO pengguna_siakad (nomor_induk, kata_sandi, nama_lengkap, peran, nomor_wa, jabatan_fungsional, bidang_keilmuan, status_serdos) 
+      VALUES (?, ?, ?, 'dosen', ?, ?, ?, ?)
+    `).bind(nidn, sandi, nama, wa, jabatan, bidang, serdos).run();
+
+    // 🛡️ CYBER FORENSICS LOG INJECTION AUTO-TRACKER
+    const headers = Astro.request.headers;
+    const liveIpAddress = headers.get("cf-connecting-ip") || headers.get("x-forwarded-for") || "127.0.0.1";
+    await db.prepare(`
+      INSERT INTO riwayat_audit_siakad (nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip)
+      VALUES (?, ?, ?, ?)
+    `).bind(sessionNama, sessionRole, `Mendaftarkan dosen baru dengan kualifikasi data resmi: ${serdos}: ${nama} (NIDN: ${nidn})`, liveIpAddress).run();
+
+    pesanSukses = `✓ Pendaftaran Berhasil! Data kepegawaian ${nama} resmi terdaftar aktif di database D1!`;
+  } catch (error: any) {
+    pesanEror = `Gagal memproses pendaftaran dosen baru: ${error.message}`;
+  }
+}
+
+try {
+  // 🔍 STREAM DATA UTAMA: Tarik semua data kepegawaian dosen dari rahim D1
+  const dosenQuery = await db.prepare(`
+    SELECT id, nomor_induk, nama_lengkap, nomor_wa, jabatan_fungsional, bidang_keilmuan, status_serdos
+    FROM pengguna_siakad
+    WHERE peran = 'dosen'
+    ORDER BY id DESC
+  `).all();
+  daftarDosen = dosenQuery.results || [];
+} catch (error: any) {
+  pesanEror = `Gagal sinkronisasi pangkalan data D1: ${error.message}`;
+}
+---
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Manajemen Data Kepegawaian Dosen - SIAKAD STIT YA'MAL</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- TOP BAR PANEL NAVIGASI SULTAN -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;"><a href="/admin/dashboard" style="color: #ffffff; text-decoration: none;">🏛️ Central BAAK Hub</a> ➔ MANAJEMEN DATA DOSEN</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">⚙️ {sessionNama}</div>
+    </header>
+
+    <main style="max-width: 1100px; margin: 0 auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 30px;">
+      
+      {pesanSukses && <div style="padding: 14px; background-color: #dcfce7; border: 1px solid #bbf7d0; color: #15803d; font-weight: bold; border-radius: 8px; font-size: 0.88rem;">{pesanSukses}</div>}
+      {pesanEror && <div style="padding: 14px; background-color: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; font-weight: bold; border-radius: 8px; font-size: 0.88rem;">{pesanEror}</div>}
+
+      <!-- FORMULIR INPUT REKREASI TENAGA PENDIDIK DOSEN BARU -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 24px;">
+          <h2 style="margin: 0; color: #005d6c; font-weight: 800; font-size: 1.4rem;">➕ Daftarkan Tenaga Pendidik / Dosen Baru</h2>
+          <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.85rem;">Input basis data kepegawaian dosen baru untuk membuka hak akses portal bimbingan KRS, portofolio Lektor, dan input nilai KHS berjalan.</p>
+        </div>
+
+        <form method="POST" style="display: flex; flex-direction: column; gap: 20px;">
+          
+          <!-- GRID BARIS 1: NIDN & NAMA LENGKAP -->
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px; flex-wrap: wrap;">
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Nomor Induk Dosen (NIDN)</label>
+              <input type="text" name="nidn_baru" placeholder="Contoh: 198512002" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; color: #0f172a; outline: none;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Nama Lengkap & Gelar Akademik</label>
+              <input type="text" name="nama_lengkap" placeholder="Contoh: Dr. Ahmad Fauzi, M.Pd." required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; color: #0f172a; outline: none;" />
+            </div>
+          </div>
+
+          <!-- GRID BARIS 2: JABATAN FUNGSIONAL & DROPDOWN STATUS SERDOS PILIHAN PANJANG -->
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Jabatan Fungsional Kampus</label>
+              <select name="jabatan_fungsional" style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; background-color: #ffffff; color: #0f172a; cursor: pointer; outline: none;">
+                <option value="Tenaga Pengajar">Tenaga Pengajar</option>
+                <option value="Asisten Ahli">Asisten Ahli</option>
+                <option value="Lektor">Lektor</option>
+                <option value="Lektor Kepala">Lektor Kepala</option>
+                <option value="Guru Besar / Profesor">Guru Besar / Profesor</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Kualifikasi Sertifikasi Dosen</label>
+              <select name="status_serdos" style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; background-color: #ffffff; color: #0f172a; cursor: pointer; outline: none;">
+                <option value="Belum Sertifikasi">Belum Sertifikasi</option>
+                <option value="SUDAH SERTIFIKASI DOSEN">SUDAH SERTIFIKASI DOSEN</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- GRID BARIS 3: RUMPUN BIDANG ILMU & NOMOR WA -->
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Rumpun Bidang Keilmuan</label>
+              <input type="text" name="bidang_keilmuan" value="Pendidikan Agama Islam (PAI)" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; color: #0f172a; outline: none;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Nomor WhatsApp Aktif (Format 62)</label>
+              <input type="text" name="nomor_wa" placeholder="Contoh: 628515656xxxx" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; color: #0f172a; outline: none;" />
+            </div>
+          </div>
+
+          <div style="display: none;">
+            <input type="text" name="kata_sandi" value="sandi_dosen_456" />
+          </div>
+
+          <!-- ACTION BUTTONS BAR BAR -->
+          <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 10px; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+            <button type="submit" style="padding: 12px 28px; background-color: #005d6c; color: #ffffff; border: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; cursor: pointer; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">
+              🚀 Daftarkan Dosen Baru ➔
+            </button>
+          </div>
+        </form>
+      </div>
+      <!-- DATATABLE VIEW: DAFTAR SELURUH DOSEN AKTIF DI RAHIM DATABASE D1 -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <h3 style="margin: 0 0 20px 0; color: #005d6c; font-weight: 800; font-size: 1.2rem;">📋 Inventarisasi Tenaga Pendidik / Dosen Aktif</h3>
+        
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left; min-width: 900px;">
+            <thead>
+              <tr style="border-bottom: 2px solid #e5e7eb; color: #005d6c; font-weight: bold; background-color: #f8fafc;">
+                <th style="padding: 14px 12px; width: 130px;">NIDN / NO. INDUK</th>
+                <th style="padding: 14px 12px; width: 220px;">NAMA LENGKAP & GELAR</th>
+                <th style="padding: 14px 12px; width: 160px;">JABATAN FUNGSIONAL</th>
+                <th style="padding: 14px 12px;">BIDANG KEILMUAN</th>
+                <!-- 🟢 SASIS LEBAR KOLOM EKSTRA LONGGAR (200PX) BIAR WORDING PANJANG ABANG TIDAK ANJLOK KEBAWAH -->
+                <th style="padding: 14px 12px; text-align: center; width: 220px;">STATUS SERDOS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {daftarDosen.length === 0 ? (
+                <tr>
+                  <td colspan="5" style="padding: 24px; text-align: center; color: #64748b; font-style: italic;">
+                    Belum ada data dosen yang terdaftar di dalam sistem SIAKAD, Doc.
+                  </td>
+                </tr>
+              ) : (
+                daftarDosen.map((dsn) => (
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 14px 12px; font-weight: bold; color: #475569; font-family: monospace;">{dsn.nomor_induk}</td>
+                    <td style="padding: 14px 12px; font-weight: 600; color: #111827;">{dsn.nama_lengkap}</td>
+                    <td style="padding: 14px 12px; font-weight: bold; color: #005d6c;">{dsn.jabatan_fungsional}</td>
+                    <td style="padding: 14px 12px; font-weight: 500; color: #374151;">{dsn.bidang_keilmuan}</td>
+                    <td style="padding: 14px 12px; text-align: center; white-space: nowrap;">
+                      <!-- 🟢 BADGE ELEgAN DENGAN LEBAR MAKSIMAL COMPACT ANTI-WRAP -->
+                      <span style={`padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; font-weight: bold; text-transform: uppercase; display: inline-block; ${dsn.status_serdos === 'SUDAH SERTIFIKASI DOSEN' ? 'background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;' : 'background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;'}`}>
+                        {dsn.status_serdos || "Belum Sertifikasi"}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top: 32px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+          <a href="/admin/dashboard" style="color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none;">➔ Kembali ke BAAK HUB Dashboard</a>
+        </div>
+      </div>
+
+    </main>
+  </body>
+</html>

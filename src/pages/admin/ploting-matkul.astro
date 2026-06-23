@@ -1,0 +1,194 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - MANAJEMEN PLOTING MATKUL DOSEN (SERVER SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + REAL-TIME D1 CURRICULUM ALLOCATION
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanSukses = "";
+let pesanEror = "";
+let daftarDosen: any[] = [];
+let daftarMatkul: any[] = [];
+let rekapPloting: any[] = [];
+
+// 🛡️ GATEKEEPER PROTECTION: Kunci hak akses ketat hanya untuk Admin BAAK
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || sessionRole !== "admin") {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding tidak ditemukan." }, { status: 500 });
+}
+
+// 📡 PROSES MUTASI METODE POST: Simpan Data Penugasan Ploting Baru ke D1
+if (Astro.request.method === "POST") {
+  try {
+    const formData = await Astro.request.formData();
+    const dosenId = formData.get("dosen_id");
+    const matkulId = formData.get("matkul_id");
+    const tahunAkademik = "2026/2027";
+    const semesterGanjilGenap = "Ganjil";
+
+    if (!dosenId || !matkulId) {
+      throw new Error("Silakan pilih Dosen dan Mata Kuliah secara lengkap, Doc!");
+    }
+
+    // Tembakkan kueri INSERT ke dalam tabel relasi ploting dosen pengampu
+    await db.prepare(`
+      INSERT INTO ploting_dosen_matkul (dosen_id, matakuliah_id, tahun_akademik, semester)
+      VALUES (?, ?, ?, ?)
+    `).bind(dosenId, matkulId, tahunAkademik, semesterGanjilGenap).run();
+
+    // 🛡️ CYBER FORENSICS LOG INJECTION AUTO-TRACKER
+    const headers = Astro.request.headers;
+    const liveIpAddress = headers.get("cf-connecting-ip") || headers.get("x-forwarded-for") || "127.0.0.1";
+    await db.prepare(`
+      INSERT INTO riwayat_audit_siakad (nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip)
+      VALUES (?, ?, 'Melakukan alokasi otomatis penugasan ploting master mata kuliah dosen pengampu', ?)
+    `).bind(sessionNama, sessionRole, liveIpAddress).run();
+
+    pesanSukses = "✓ Berhasil mengunci penugasan dosen pengampu mata kuliah ke database D1!";
+  } catch (error: any) {
+    pesanEror = `Gagal memproses ploting kurikulum: ${error.message}`;
+  }
+}
+
+try {
+  // 🔍 STREAM DATA OPTION 1: Tarik semua user ber-peran 'dosen' untuk dropdown selection
+  const queryDsn = await db.prepare("SELECT id, nama_lengkap FROM pengguna_siakad WHERE peran = 'dosen' ORDER BY nama_lengkap ASC").all();
+  daftarDosen = queryDsn.results || [];
+
+  // 🔍 STREAM DATA OPTION 2: Tarik semua master matakuliah untuk dropdown selection
+  const queryMtk = await db.prepare("SELECT id, kode_matkul, nama_matkul, sks FROM master_matakuliah ORDER BY kode_matkul ASC").all();
+  daftarMatkul = queryMtk.results || [];
+
+  // 🔍 STREAM DATA OPTION 3: SQL RELATIONAL JOIN - Tarik data Rekapitulasi Ploting Beban SKS Mengajar per Dosen
+  const queryRekap = await db.prepare(`
+    SELECT pdm.id, ps.nama_lengkap as nama_dosen, mm.kode_matkul, mm.nama_matkul, mm.sks, mm.semester_target
+    FROM ploting_dosen_matkul pdm
+    JOIN pengguna_siakad ps ON pdm.dosen_id = ps.id
+    JOIN master_matakuliah mm ON pdm.matakuliah_id = mm.id
+    ORDER BY pdm.id DESC
+  `).all();
+  rekapPloting = queryRekap.results || [];
+} catch (error: any) {
+  pesanEror = `Gagal sinkronisasi relasi kurikulum D1: ${error.message}`;
+}
+---
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Otomatisasi Penugasan Ploting Matkul - SIAKAD STIT YA'MAL</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- TOP BAR PANEL NAVIGASI CENTRAL BAAK HUB -->
+    <header style="background-color: #005d6c; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;"><a href="/admin/dashboard" style="color: #ffffff; text-decoration: none;">🏛️ Central BAAK Hub</a> ➔ PLOTING DOSEN PENGAMPU</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">⚙️ {sessionNama}</div>
+    </header>
+
+    <main style="max-width: 1100px; margin: 0 auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 30px;">
+      
+      {pesanSukses && <div style="padding: 14px; background-color: #dcfce7; border: 1px solid #bbf7d0; color: #15803d; font-weight: bold; border-radius: 8px; font-size: 0.88rem; line-height: 1.4;">{pesanSukses}</div>}
+      {pesanEror && <div style="padding: 14px; background-color: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; font-weight: bold; border-radius: 8px; font-size: 0.88rem; line-height: 1.4;">{pesanEror}</div>}
+
+      <!-- FORMULIR INTERAKTIF KAWIN SILANG DATA: PLOTING DOSEN & MATKUL -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 24px;">
+          <h2 style="margin: 0; color: #005d6c; font-weight: 800; font-size: 1.4rem;">🎯 Otomatisasi Rekapitulasi Ploting Mengajar</h2>
+          <p style="margin: 4px 0 0 0; color: #64748b; font-size: 0.85rem;">Pasangkan tenaga pendidik dosen wali dengan master mata kuliah kurikulum. Relasi ini otomatis menentukan hak pengisian nilai akhir mahasiswa.</p>
+        </div>
+
+        <form method="POST" style="display: flex; flex-direction: column; gap: 20px;">
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+            
+            <!-- DROPDOWN SELEKSI 1: PILIH TENAGA PENDIDIK DOSEN -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Pilih Dosen Pengampu</label>
+              <select name="dosen_id" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; background-color: #ffffff; color: #0f172a; cursor: pointer; outline: none;">
+                <option value="">-- Silakan Pilih Dosen --</option>
+                {daftarDosen.map((dsn) => (
+                  <option value={dsn.id}>{dsn.nama_lengkap}</option>
+                ))}
+              </select>
+            </div>
+
+            <!-- DROPDOWN SELEKSI 2: PILIH MATA KULIAH KURIKULUM -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label style="font-size: 0.8rem; font-weight: bold; color: #475569; text-transform: uppercase;">Pilih Mata Kuliah Penugasan</label>
+              <select name="matkul_id" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.92rem; background-color: #ffffff; color: #0f172a; cursor: pointer; outline: none;">
+                <option value="">-- Silakan Pilih Mata Kuliah --</option>
+                {daftarMatkul.map((matkul) => (
+                  <option value={matkul.id}>[{matkul.kode_matkul}] {matkul.nama_matkul} ({matkul.sks} SKS)</option>
+                ))}
+              </select>
+            </div>
+
+          </div>
+
+          <!-- ACTION BUTTON INTERKONEKSI -->
+          <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 10px; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+            <button type="submit" style="padding: 12px 28px; background-color: #005d6c; color: #ffffff; border: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; cursor: pointer; transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#0b6170'" onmouseout="this.style.backgroundColor='#005d6c'">
+              🔒 Kunci Penugasan Ploting Dosen ➔
+            </button>
+          </div>
+        </form>
+      </div>
+      <!-- DATATABLE VIEW: DAFTAR SELURUH REKAPITULASI PLOTING AKTIF DI RAHIM DATABASE D1 -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        <h3 style="margin: 0 0 20px 0; color: #005d6c; font-weight: 800; font-size: 1.2rem;">📋 Inventaris & Rekapitulasi Beban Ploting Mengajar Dosen</h3>
+        
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left;">
+            <thead>
+              <tr style="border-bottom: 2px solid #e5e7eb; color: #005d6c; font-weight: bold; background-color: #f8fafc;">
+                <th style="padding: 14px 12px;">NAMA LENGKAP DOSEN PENGAMPU</th>
+                <th style="padding: 14px 12px; width: 130px;">KODE MATKUL</th>
+                <th style="padding: 14px 12px;">NAMA MATA KULIAH KURIKULUM</th>
+                <th style="padding: 14px 12px; text-align: center; width: 110px;">SEMESTER</th>
+                <th style="padding: 14px 12px; text-align: center; width: 100px;">BEBAN SKS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rekapPloting.length === 0 ? (
+                <tr>
+                  <td colspan="5" style="padding: 24px; text-align: center; color: #64748b; font-style: italic;">
+                    Belum ada riwayat alokasi ploting mata kuliah dosen yang tercatat di dalam sistem, Doc.
+                  </td>
+                </tr>
+              ) : (
+                rekapPloting.map((rekap) => (
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 14px 12px; font-weight: bold; color: #111827;">👤 {rekap.nama_dosen}</td>
+                    <td style="padding: 14px 12px; font-weight: bold; color: #475569; font-family: monospace;">{rekap.kode_matkul}</td>
+                    <td style="padding: 14px 12px; font-weight: 600; color: #374151;">{rekap.nama_matkul}</td>
+                    <td style="padding: 14px 12px; text-align: center; font-weight: bold; color: #64748b;">Semester {rekap.semester_target}</td>
+                    <td style="padding: 14px 12px; text-align: center;">
+                      <span style="background-color: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: bold; border: 1px solid #bdf0ff; display: inline-block;">
+                        {rekap.sks} SKS
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top: 32px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+          <a href="/admin/dashboard" style="color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none;">➔ Kembali ke BAAK HUB Dashboard</a>
+        </div>
+      </div>
+
+    </main>
+  </body>
+</html>
