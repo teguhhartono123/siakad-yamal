@@ -1,0 +1,178 @@
+---
+// =========================================================================
+// 🏛️ REPUBLIK PORTAL SIAKAD - MODUL DOSEN PRESENSI MAHASISWA (SERVER SSR)
+// 🎓 STIT YA'MAL TANGERANG - ASTRO V6 + REAL-TIME D1 ATTENDANCE MUTATOR
+// =========================================================================
+
+import { env } from 'cloudflare:workers';
+
+let pesanSukses = "";
+let pesanEror = "";
+let daftarMahasiswaAbsen: any[] = [];
+let daftarMatkulDosen: any[] = [];
+
+// 🛡️ GATEKEEPER PROTECTION: Kunci hak akses ketat untuk Dosen / Admin
+const sessionNim = Astro.cookies.get("siakad_session_nim")?.value;
+const sessionNama = Astro.cookies.get("siakad_session_nama")?.value;
+const sessionRole = Astro.cookies.get("siakad_session_role")?.value;
+
+if (!sessionNim || (sessionRole !== "dosen" && sessionRole !== "admin")) {
+  return Astro.redirect('/login');
+}
+
+const db = env.database_siakad;
+if (!db) {
+  return Astro.json({ error: "Database binding tidak ditemukan." }, { status: 500 });
+}
+
+// 📡 PROSES MUTASI METODE POST: Eksekusi Suntik Absensi Baru ke Rahim D1
+if (Astro.request.method === "POST") {
+  try {
+    const formData = await Astro.request.formData();
+    const matkulId = formData.get("matakuliah_id");
+    const mhsIds = formData.getAll("mahasiswa_id[]");
+    const tanggalAbsen = new Date().toISOString().split('T')[0];
+
+    if (!matkulId || mhsIds.length === 0) {
+      throw new Error("Parameter presensi kelas tidak komplit, Doc!");
+    }
+
+    // Loop data kiriman untuk melakukan insert/update log kehadiran mahasiswa
+    for (const mhsId of mhsIds) {
+      const statusHadir = formData.get(`status_${mhsId}`) || "Hadir";
+      
+      // Amankan kueri masuk pangkalan data D1
+      await db.prepare(`
+        INSERT INTO presensi_kuliah_siakad (matakuliah_id, mahasiswa_id, tanggal, status_kehadiran, dicatat_oleh)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(matakuliah_id, mahasiswa_id, tanggal) DO UPDATE SET status_kehadiran = ?
+      `).bind(matkulId, mhsId, tanggalAbsen, statusHadir, sessionNama, statusHadir).run();
+    }
+
+    // 🛡️ CYBER FORENSICS LOG INJECTION AUTO-TRACKER
+    const headers = Astro.request.headers;
+    const liveIpAddress = headers.get("cf-connecting-ip") || headers.get("x-forwarded-for") || "127.0.0.1";
+    await db.prepare(`
+      INSERT INTO riwayat_audit_siakad (nama_pengguna, peran_pengguna, aksi_aktivitas, alamat_ip)
+      VALUES (?, ?, ?, ?)
+    `).bind(sessionNama, sessionRole, `Mengunci lembar jurnal presensi kelas kuliah real-time untuk Matakuliah ID #${matkulId}`, liveIpAddress).run();
+
+    pesanSukses = "✓ Berhasil mengunci lembar jurnal absensi mahasiswa hari ini ke Cloudflare D1!";
+  } catch (error: any) {
+    pesanEror = `Gagal memproses jurnal absensi: ${error.message}`;
+  }
+}
+
+try {
+  // 🔍 REAL-TIME SQL QUERY: Ambil semua mahasiswa ber-peran mahasiswa secara universal
+  const mhsQuery = await db.prepare("SELECT id, nama_lengkap, nomor_induk as nim FROM pengguna_siakad WHERE peran = 'mahasiswa' ORDER BY nama_lengkap ASC").all();
+  daftarMahasiswaAbsen = mhsQuery.results || [];
+
+  // Tarik data mata kuliah untuk pilihan dropdown dosen
+  const matkulQuery = await db.prepare("SELECT id, kode_matkul, nama_matkul FROM master_matakuliah ORDER BY nama_matkul ASC").all();
+  daftarMatkulDosen = matkulQuery.results || [];
+} catch (error: any) {
+  pesanEror = `Gagal sinkronisasi pangkalan presensi D1: ${error.message}`;
+}
+---
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Jurnal Absensi Real-Time - SIAKAD STIT YA'MAL</title>
+  </head>
+  <body style="margin: 0; background-color: #f4f9fa; font-family: sans-serif; color: #1f2937;">
+    
+    <!-- TOP BAR PANEL NAVIGASI DOSEN WALi CENTRAL -->
+    <header style="background-color: #7c3aed; color: #ffffff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.3px;">🏛️ PORTAL DOSEN HUB ➔ JURNAL PRESENSI KELAS</div>
+      <div style="font-size: 0.9rem; font-weight: 600;">👨‍🏫 {sessionNama}</div>
+    </header>
+
+    <main style="max-width: 1100px; margin: 0 auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 30px;">
+      
+      {pesanSukses && <div style="padding: 14px; background-color: #dcfce7; border: 1px solid #bbf7d0; color: #15803d; font-weight: bold; border-radius: 8px; font-size: 0.88rem; line-height: 1.4;">{pesanSukses}</div>}
+      {pesanEror && <div style="padding: 14px; background-color: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; font-weight: bold; border-radius: 8px; font-size: 0.88rem; line-height: 1.4;">{pesanEror}</div>}
+
+      <!-- CONTAINER FORM UTAMA PRESENSI KELAS -->
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01);">
+        
+        <form method="POST" style="margin: 0; display: flex; flex-direction: column; gap: 24px;">
+          
+          <!-- SELEKSI MATA KULIAH BERJALAN -->
+          <div style="display: flex; flex-direction: column; gap: 6px; max-width: 480px;">
+            <label style="font-size: 0.82rem; color: #4b5563; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">🎯 Pilih Mata Kuliah Kelas Hari Ini:</label>
+            <select name="matakuliah_id" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.9rem; background-color: #ffffff; color: #0f172a; cursor: pointer; outline: none; font-weight: 600;">
+              <option value="">-- SILAKAN PILIH KELAS MATKUL --</option>
+              {daftarMatkulDosen.map((matkul) => (
+                <option value={matkul.id}>📚 {matkul.kode_matkul} - {matkul.nama_matkul}</option>
+              ))}
+            </select>
+          </div>
+
+          <!-- TABLE INPUT PRESENSI MAHASISWA -->
+          <div style="overflow-x: auto; margin-top: 10px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left; min-width: 700px;">
+              <thead>
+                <tr style="border-bottom: 2px solid #e5e7eb; color: #7c3aed; font-weight: bold; background-color: #fcfbfe;">
+                  <th style="padding: 14px 12px; width: 150px;">NIM MAHASISWA</th>
+                  <th style="padding: 14px 12px;">NAMA LENGKAP MAHASISWA MAHASISWA</th>
+                  <th style="padding: 14px 12px; text-align: center; width: 350px;">STATUS JURNAL KEHADIRAN HARI INI</th>
+                </tr>
+              </thead>
+              <tbody>
+              {daftarMahasiswaAbsen.length === 0 ? (
+                <tr>
+                  <td colspan="3" style="padding: 24px; text-align: center; color: #64748b; font-style: italic;">
+                    Belum ada data mahasiswa aktif yang tercatat di dalam pangkalan data, Doc.
+                  </td>
+                </tr>
+              ) : (
+                daftarMahasiswaAbsen.map((mhs) => (
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 14px 12px; font-weight: bold; color: #0284c7; font-family: monospace;">{mhs.nim}</td>
+                    <td style="padding: 14px 12px; font-weight: 600; color: #111827;">👤 {mhs.nama_lengkap}</td>
+                    <td style="padding: 14px 12px; text-align: center;">
+                      <!-- INPUT HIDDEN UNTUK MENGIRIM ARRAY MAHASISWA ID -->
+                      <input type="hidden" name="mahasiswa_id[]" value={mhs.id} />
+                      
+                      <!-- KAWAT SAKLAR RADIO BUTTON ERGONOMIS ANTI-SALAH KETUK -->
+                      <div style="display: flex; gap: 16px; justify-content: center; align-items: center;">
+                        <label style="display: flex; align-items: center; gap: 4px; font-size: 0.85rem; font-weight: bold; color: #16a34a; cursor: pointer;">
+                          <input type="radio" name={`status_${mhs.id}`} value="Hadir" checked style="cursor: pointer;" /> Hadir
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px; font-size: 0.85rem; font-weight: bold; color: #d97706; cursor: pointer;">
+                          <input type="radio" name={`status_${mhs.id}`} value="Izin" style="cursor: pointer;" /> Izin
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px; font-size: 0.85rem; font-weight: bold; color: #2563eb; cursor: pointer;">
+                          <input type="radio" name={`status_${mhs.id}`} value="Sakit" style="cursor: pointer;" /> Sakit
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px; font-size: 0.85rem; font-weight: bold; color: #dc2626; cursor: pointer;">
+                          <input type="radio" name={`status_${mhs.id}`} value="Alfa" style="cursor: pointer;" /> Alfa
+                        </label>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- TOMBOL KANCING SUBMIT UNGU ELEGAN -->
+        <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
+          <button type="submit" style="padding: 12px 24px; background-color: #7c3aed; color: #ffffff; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: bold; cursor: pointer; transition: background-color 0.1s; box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.2);" onmouseover="this.style.backgroundColor='#6d28d9'" onmouseout="this.style.backgroundColor='#7c3aed'">
+            💾 Kunci Jurnal Presensi Hari Ini
+          </button>
+        </div>
+
+      </form>
+
+        <div style="margin-top: 32px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+          <a href="/admin/dashboard" style="color: #64748b; font-size: 0.9rem; font-weight: 600; text-decoration: none;">➔ Kembali ke BAAK HUB Dashboard</a>
+        </div>
+      </div>
+
+    </main>
+  </body>
+</html>

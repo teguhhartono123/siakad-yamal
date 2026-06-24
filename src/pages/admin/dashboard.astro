@@ -178,30 +178,33 @@ try {
           <!-- 🟢 PASTIKAN KODENYA BERSIH SEPERTI INI TANPA ADA EMBEL-EMBEL TEKS "Grad" DI DALAMNYA -->
             <div style="font-size: 2.2rem; background-color: #f0f9ff; padding: 12px; border-radius: 12px; border: 1px solid #e0f2fe; display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; box-sizing: border-box;">🎓</div>
         </a>
-
-                <!-- 👥 KARTU INTEGRASI MUTLAK: DATA DOSEN SEKALIGUS MEMANGKU DUA TOMBOL KLIK AKSES MANDIRI (ERgONOMIS!) -->
+        <!-- 👥 KARTU 2 INTEGRASI MUTLAK: DATA DOSEN SEKALIGUS MEMANGKU TIGA TOMBOL SHORTCUT AKSES TERPADU (ERgONOMIS!) -->
         <div style="background-color: #ffffff; padding: 24px; border-radius: 16px; border: 1px solid #e5e7eb; border-left: 6px solid #7c3aed; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: space-between; box-sizing: border-box;">
           <div>
             <div style="font-size: 0.82rem; color: #4b5563; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 2px;">
               <span>👨‍🏫 Total Dosen</span>
-              <!-- 👤 TOMBOL shortcut A: MENU INPUT DATA DOSEN BARU -->
+              <!-- 👤 SHORTCUT A: INPUT DATA DOSEN BARU -->
               <a href="/admin/dosen" style="font-size: 0.7rem; background-color: #f5f3ff; color: #6d28d9; padding: 2px 6px; border-radius: 4px; font-weight: bold; text-decoration: none; border: 1px solid #ddd6fe; transition: all 0.1s;" onmouseover="this.style.backgroundColor='#ede9fe';" onmouseout="this.style.backgroundColor='#f5f3ff';">Kelola SDM 👤</a>
-              <!-- 🎯 TOMBOL shortcut B: MENU OTOMATISASI PLOTING MATA KULIAH -->
+              <!-- 🎯 SHORTCUT B: MODUL OTOMATISASI PLOTING MATA KULIAH -->
               <a href="/admin/ploting-matkul" style="font-size: 0.7rem; background-color: #f5f3ff; color: #7c3aed; padding: 2px 6px; border-radius: 4px; font-weight: bold; text-decoration: none; border: 1px solid #ddd6fe; transition: all 0.1s;" onmouseover="this.style.backgroundColor='#ede9fe';" onmouseout="this.style.backgroundColor='#f5f3ff';">Ploting SKS 🎯</a>
+              <!-- 📝 SHORTCUT C: KABEL KONEKSI BARU MENU ABSENSI REAL-TIME MAHASISWA -->
+              <a href="/dosen/absensi" style="font-size: 0.7rem; background-color: #7c3aed; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: bold; text-decoration: none; border: 1px solid #6d28d9; transition: all 0.1s;" onmouseover="this.style.backgroundColor='#6d28d9';" onmouseout="this.style.backgroundColor='#7c3aed';">Absensi Kelas 📝</a>
             </div>
             <div style="font-size: 2.2rem; font-weight: 800; color: #005d6c; margin-top: 8px;">{statistik.totalDsn} <span style="font-size: 1rem; font-weight: 500; color: #9ca3af;">Dosen</span></div>
           </div>
           <div style="font-size: 2.2rem; background-color: #f5f3ff; padding: 12px; border-radius: 12px; border: 1px solid #ede9fe; display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; box-sizing: border-box;">👨‍🏫</div>
         </div>
+
  
         <!-- 🟢 KARTU 3 INTERAKTIF: FULL BUTTON NAVIGASI KELOLA MASTER MATA KULIAH (HIJAU TEAL SULTAN) -->
         <a href="/admin/matakuliah" style="background-color: #005d6c; padding: 24px; border-radius: 16px; border: 1px solid #004d5a; box-shadow: 0 10px 15px -3px rgba(0, 93, 108, 0.2); text-decoration: none; display: flex; align-items: center; justify-content: space-between; box-sizing: border-box; transition: all 0.2s ease-in-out;" onmouseover="this.style.backgroundColor='#0b6170'; this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 20px -3px rgba(0, 93, 108, 0.3)';" onmouseout="this.style.backgroundColor='#005d6c'; this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 93, 108, 0.2)';">
-          <div>
+            <div>
             <div style="font-size: 0.82rem; color: #ccfbf1; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">📚 Kurikulum Academic <span style="font-size: 0.75rem; background-color: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; color: #ffffff;">Buka Kelola ➔</span></div>
             <div style="font-size: 2.2rem; font-weight: 800; color: #ffffff; margin-top: 8px;">{statistik.totalMatkul} <span style="font-size: 1rem; font-weight: 400; color: #ccfbf1;">Matkul</span></div>
           </div>
           <div style="font-size: 2.2rem; background-color: rgba(255,255,255,0.1); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; box-sizing: border-box;">📖</div>
         </a>
+        
 
       </div>
       <!-- DUAL HISTOGRAM WORKSPACE -->
@@ -226,26 +229,37 @@ try {
           </div>
         </div>
 
-        <!-- BAGAN 2: HISTOGRAM SPP -->
-        <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb;">
-          <h3 style="margin: 0 0 6px 0; color: #005d6c; font-weight: 800; font-size: 1.2rem;">💰 Laporan Arus Kas SPP Mahasiswa</h3>
-          <p style="margin: 0 0 24px 0; color: #64748b; font-size: 0.85rem;">Parameter: <b>Verifikasi Keuangan SPP Pokok Semester 1</b></p>
-          <div style="display: flex; flex-direction: column; gap: 14px;">
-            {keuanganData.map((item) => (
-              <div style="display: flex; align-items: center; gap: 14px;">
-                <div style="width: 110px; font-size: 0.85rem; font-weight: 700; color: #374151;">{item.label}</div>
-                <div style="flex-grow: 1; background-color: #f1f5f9; height: 24px; border-radius: 4px; overflow: hidden; border: 1px solid #e2e8f0;">
-                  <div style={`background-color: ${item.color}; height: 100%; width: ${item.percentage || 1}%; transition: width 0.5s ease-in-out; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; box-sizing: border-box;`}>
-                    {item.percentage > 0 && <span style="color: #ffffff; font-size: 0.7rem; font-weight: bold;">{item.percentage}%</span>}
+        <!-- BAGAN 2: HISTOGRAM SPP (RE-DESIGNED UI/UX ELEGAN PREMIUM KASTA SULTAN TERTINGGI) -->
+        <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; height: 100%;">
+          <div>
+            <h3 style="margin: 0 0 6px 0; color: #005d6c; font-weight: 800; font-size: 1.2rem;">💰 Laporan Arus Kas SPP Mahasiswa</h3>
+            <p style="margin: 0 0 24px 0; color: #64748b; font-size: 0.85rem;">Parameter: <b>Verifikasi Keuangan SPP Pokok Semester 1</b></p>
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              {keuanganData.map((item) => (
+                <div style="display: flex; align-items: center; gap: 14px;">
+                  <div style="width: 110px; font-size: 0.85rem; font-weight: 700; color: #374151;">{item.label}</div>
+                  <div style="flex-grow: 1; background-color: #f1f5f9; height: 24px; border-radius: 4px; overflow: hidden; border: 1px solid #e2e8f0;">
+                    <div style={`background-color: ${item.color}; height: 100%; width: ${item.percentage || 1}%; transition: width 0.5s ease-in-out; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; box-sizing: border-box;`}>
+                      {item.percentage > 0 && <span style="color: #ffffff; font-size: 0.7rem; font-weight: bold;">{item.percentage}%</span>}
+                    </div>
                   </div>
+                  <div style={`width: 50px; font-size: 0.85rem; font-weight: bold; color: ${item.color}; text-align: right;`}>{item.count} mhs</div>
                 </div>
-                <div style={`width: 50px; font-size: 0.85rem; font-weight: bold; color: ${item.color}; text-align: right;`}>{item.count} mhs</div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+
+          <!-- 🟢 RE-DESIGNED ELEGAN BUTTON: DIKASIH MARGIN-TOP TEBAL, HOVER SMOOTH, DAN KONTRAST WAJAH METRIK -->
+          <a href="/admin/update-spp" style="background-color: #16a34a; padding: 12px 16px; border-radius: 10px; border: 1px solid #15803d; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease-in-out; margin-top: 40px; box-shadow: 0 4px 6px -1px rgba(22, 163, 74, 0.1);" onmouseover="this.style.backgroundColor='#15803d'; this.style.transform='translateY(-1px)';" onmouseout="this.style.backgroundColor='#16a34a'; this.style.transform='translateY(0)';">
+            <span style="font-size: 1.1rem; line-height: 1;">💰</span>
+            <span style="font-weight: 800; color: #ffffff; font-size: 0.85rem; letter-spacing: 0.5px; text-transform: uppercase;">Buka Loket Pembaruan SPP ➔</span>
+          </a>
         </div>
 
+
       </div>
+
+
       <!-- 🛡️ FORENSIK AUDIT LOGS DENGAN BOX TOMBOL MULTI-FORMAT EXPORT -->
       <div class="container-audit" style="background-color: #ffffff; padding: 32px; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); margin-top: 10px;">
         
