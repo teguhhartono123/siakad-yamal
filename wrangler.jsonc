@@ -1,12 +1,18 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "siakad-yamal",
-  "compatibility_date": "2026-06-21",
-  "d1_databases": [
-    {
-      "binding": "database_siakad",
-      "database_name": "database-siakad",
-      "database_id": "4146c7b7-4d68-4c44-9eac-16e4a83b3849"
-    }
-  ]
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "siakad-yamal",
+	"compatibility_date": "2026-06-21",
+	"d1_databases": [
+		{
+			"binding": "database_siakad",
+			"database_name": "database-siakad",
+			"database_id": "4146c7b7-4d68-4c44-9eac-16e4a83b3849"
+		}
+	],
+	"r2_buckets": [
+		{
+			"bucket_name": "siakad-backup-bucket",
+			"binding": "siakad_backup_bucket"
+		}
+	]
 }
